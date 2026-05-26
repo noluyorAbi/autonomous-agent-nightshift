@@ -45,9 +45,19 @@ Failed tasks get `[x] — NEEDS MANUAL REVIEW` and the loop moves on. You triage
 
 ## Install
 
-### As a Claude Code skill (recommended)
+### One-liner (recommended)
 
-Drop this repo into your Claude Code skills directory and Claude will load it automatically when you ask anything nightshift-related.
+```bash
+curl -fsSL https://raw.githubusercontent.com/noluyorAbi/autonomous-agent-nightshift/main/bin/install.sh | bash
+```
+
+That installs to `~/.claude/skills/autonomous-agent-nightshift/` (user-level — available in every project). For project-level instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/noluyorAbi/autonomous-agent-nightshift/main/bin/install.sh | bash -s -- --project
+```
+
+### Manual skill install
 
 ```bash
 # User-level (available across all projects)
@@ -58,18 +68,6 @@ cd your-project
 git clone https://github.com/noluyorAbi/autonomous-agent-nightshift .claude/skills/autonomous-agent-nightshift
 ```
 
-Then in Claude Code:
-
-> "Set up a nightshift run to build {feature}."
->
-> "Help me write a todo file for tonight's agent run."
->
-> "Review last night's nightshift results."
->
-> "Bulletproof this codebase before launch."
-
-The skill triggers on those phrases and walks you through setup, launch, or review. See `SKILL.md` for the full skill contract.
-
 ### As a plugin
 
 If your Claude Code plugin marketplace is configured:
@@ -78,11 +76,9 @@ If your Claude Code plugin marketplace is configured:
 /plugin install autonomous-agent-nightshift
 ```
 
-The plugin manifest is at `.claude-plugin/plugin.json`.
+Manifest at `.claude-plugin/plugin.json` ships the skill + 4 slash commands.
 
-### Manual (no skill, just bash)
-
-Copy the scripts and templates into your project:
+### Bash-only (no Claude Code)
 
 ```bash
 git clone https://github.com/noluyorAbi/autonomous-agent-nightshift /tmp/nightshift
@@ -92,6 +88,21 @@ cp /tmp/nightshift/templates/todo-template.md ./todo-$(date +%Y_%m_%d)_my-featur
 ```
 
 Then edit per `docs/01-playbook.md`.
+
+---
+
+## Slash commands
+
+After install, these slash commands trigger directly:
+
+| Command | What it does |
+|---------|--------------|
+| `/nightshift-setup` | Walks you through setting up a new run on the current project (detect stack → write todo → generate context → configure runner → preflight → launch command) |
+| `/nightshift-review` | Reads last run's logs, surfaces REVIEW-flagged tasks, summarizes the diff, produces a structured morning report |
+| `/nightshift-bulletproof` | Sets up a production-hardening sweep with branch + commit per step + PR + review-comment healing |
+| `/nightshift-status` | Checks if a nightshift is running, what task it's on, iteration budget, ETA |
+
+Or just talk naturally — the skill triggers on phrases like "set up a nightshift", "review last night's run", "harden this codebase before launch", "is my agent still running?"
 
 ---
 
@@ -162,6 +173,20 @@ git add -p && git commit         # ship what you like
 
 ---
 
+## vs. alternatives
+
+| Tool | Model | Best for | Why nightshift instead |
+|------|-------|----------|------------------------|
+| **Cursor / Windsurf agents** | Proprietary editor | Inline assist, single-task agents | They live in the editor. Nightshift runs detached, overnight, on a real validation gate. |
+| **Aider** | Multi-model CLI | Pair-programming style | Aider is interactive. Nightshift is batch — write the plan, walk away. |
+| **Devin / SWE-bench agents** | Cloud, closed | Issue → PR end-to-end | Nightshift is open-source, runs on your machine, reads your codebase context exactly as you write it. |
+| **GitHub Copilot Workspace** | Cloud, closed | Spec → PR for GitHub issues | Workspace is GitHub-locked. Nightshift runs locally on any repo, any branch, any toolchain. |
+| **Raw `claude -p` in a bash loop** | Same model | Anyone with bash | This is what nightshift *is*, with: a validation gate, fix loop, Chrome MCP testing, Bulletproof PR mode, per-stack adapters, sanitized real examples, and 47KB of playbook. |
+
+Nightshift's niche: **you already trust the model to write code, you want to harness it through a strict validation gate, and you want it detached so you can sleep**.
+
+---
+
 ## Two modes
 
 | Mode | Script | Use case |
@@ -178,31 +203,42 @@ Both share the same validation pipeline: **prettier → tsc → eslint → tests
 ```
 SKILL.md                     Claude Code skill manifest + workflow guide
 .claude-plugin/plugin.json   Plugin marketplace manifest
+bin/install.sh               One-liner installer
+
+commands/
+├── nightshift-setup.md       /nightshift-setup
+├── nightshift-review.md      /nightshift-review
+├── nightshift-bulletproof.md /nightshift-bulletproof
+└── nightshift-status.md      /nightshift-status
 
 docs/
-├── 01-playbook.md           Master guide — read this first (47 KB)
-├── 02-bulletproof-mode.md   PR-loop variant (commit per task, open PR, address review)
-├── 03-chrome-testing.md     Live browser verification via Claude-in-Chrome MCP
-├── 04-qa-checklist.md       Writing a production-ship checklist
-├── 05-failure-modes.md      Cheatsheet of seen failures + fixes
-└── 06-test-loop.md          Recursive validation loop (no Claude)
+├── 01-playbook.md            Master guide — read first (47 KB)
+├── 02-bulletproof-mode.md    PR-loop variant deep dive
+├── 03-chrome-testing.md      Live browser MCP testing
+├── 04-qa-checklist.md        Writing production-ship checklists
+├── 05-failure-modes.md       Cheatsheet of seen failures + fixes
+└── 06-test-loop.md           Recursive validation loop (no Claude)
 
 scripts/
-├── run-agent-loop.sh        Classic feature-implementation runner
+├── run-agent-loop.sh         Classic feature-implementation runner
 ├── nightshift-bulletproof.sh Branch + commit + PR + review variant
-├── start-nightshift.sh      start/stop/status/tail wrapper
-└── test-nightshift.sh       Recursive validation loop
+├── start-nightshift.sh       start/stop/status/tail wrapper
+└── test-nightshift.sh        Recursive validation loop
 
 templates/
-├── todo-template.md         Blank feature-plan skeleton
-├── codebase-context.md      Heredoc filler for the runner
-├── qa-checklist-template.md Production-ship checklist skeleton
-└── runner-config.env        Tuning presets per scenario
+├── todo-template.md          Feature-plan skeleton
+├── codebase-context.md       Heredoc filler for the runner
+├── qa-checklist-template.md  Production-ship checklist skeleton
+└── runner-config.env         Tuning presets per scenario
 
 examples/
-├── todo-design-nightshift.md  Real (sanitized) 50-task design overhaul
-├── qa-checklist-saas.md       Real (sanitized) 22-section SaaS checklist
-└── bulletproof-summary.log    Real (sanitized) 100-step run timeline
+├── todo-design-nightshift.md Real (sanitized) 50-task design overhaul
+├── qa-checklist-saas.md      Real (sanitized) 22-section SaaS checklist
+└── bulletproof-summary.log   Real (sanitized) 100-step run timeline
+
+.github/workflows/lint.yml    CI: shellcheck + markdownlint + plugin.json/SKILL.md validation
+CONTRIBUTING.md               How to contribute (esp. stack adapters + sanitized examples)
+CHANGELOG.md                  v1.0.0 release notes
 ```
 
 ---

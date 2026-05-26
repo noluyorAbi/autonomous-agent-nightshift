@@ -193,16 +193,11 @@ You have access to Chrome browser automation via MCP tools. The app is running a
 - mcp__claude-in-chrome__upload_image — Take a screenshot
 
 ### Pages to Test:
-- Landing: http://localhost:3000
-- Login: http://localhost:3000/login
-- Signup: http://localhost:3000/signup
-- Dashboard: http://localhost:3000/dashboard
-- Interview: http://localhost:3000/interview
-- Pricing: http://localhost:3000/pricing
-- Settings: http://localhost:3000/settings
-- Admin: http://localhost:3000/admin
-- Help: http://localhost:3000/help
-- Tips: http://localhost:3000/tips
+# REPLACE with your app's routes:
+- Landing: $DEV_URL/
+- {Route 1}: $DEV_URL/{path}
+- {Route 2}: $DEV_URL/{path}
+- {Route 3}: $DEV_URL/{path}
 CHROME_EOF
 
 # ======================== STEP EXTRACTION ========================

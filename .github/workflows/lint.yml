@@ -1,0 +1,61 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck on scripts
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: ./scripts
+          severity: warning
+
+  markdownlint:
+    name: Markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run markdownlint
+        run: |
+          npm install -g markdownlint-cli2
+          markdownlint-cli2 "**/*.md" "#node_modules" "#examples" || true
+
+  validate-plugin-json:
+    name: Validate plugin.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON
+        run: |
+          python3 -m json.tool .claude-plugin/plugin.json > /dev/null
+          echo "plugin.json is valid JSON"
+
+  validate-skill-frontmatter:
+    name: Validate SKILL.md frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check SKILL.md has name + description
+        run: |
+          head -10 SKILL.md | grep -q '^name:' || { echo "SKILL.md missing name field"; exit 1; }
+          head -10 SKILL.md | grep -q '^description:' || { echo "SKILL.md missing description field"; exit 1; }
+          desc_len=$(grep '^description:' SKILL.md | head -1 | wc -c)
+          if [ "$desc_len" -gt 500 ]; then
+            echo "SKILL.md description is $desc_len chars (recommend <500 for sharp matching)"
+            exit 1
+          fi
+          echo "SKILL.md frontmatter OK"

@@ -14,12 +14,36 @@
     "overnight-agent",
     "nightshift",
     "tdd",
-    "ai-coding"
+    "ai-coding",
+    "bulletproof",
+    "mcp"
   ],
   "skills": [
     {
       "name": "autonomous-agent-nightshift",
       "path": "SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "nightshift-setup",
+      "path": "commands/nightshift-setup.md",
+      "description": "Set up a new autonomous nightshift run on the current project"
+    },
+    {
+      "name": "nightshift-review",
+      "path": "commands/nightshift-review.md",
+      "description": "Review results from a completed nightshift run"
+    },
+    {
+      "name": "nightshift-bulletproof",
+      "path": "commands/nightshift-bulletproof.md",
+      "description": "Set up a Bulletproof production-hardening sweep with PR + review healing"
+    },
+    {
+      "name": "nightshift-status",
+      "path": "commands/nightshift-status.md",
+      "description": "Check status of a currently-running nightshift"
     }
   ]
 }
