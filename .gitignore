@@ -1,0 +1,15 @@
+# Runtime state — created by the runner scripts
+.claude_iterations
+.agent-logs/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
+
+# Node (in case users mistakenly copy the repo into a project root)
+node_modules/
