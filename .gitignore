@@ -13,3 +13,6 @@ Thumbs.db
 
 # Node (in case users mistakenly copy the repo into a project root)
 node_modules/
+
+# Ruflo plugin local memory
+ruvector.db
