@@ -4,6 +4,26 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-27
+
+### Added
+
+- `commands/nightshift-resume.md` — diagnose why a nightshift stopped (iteration limit, rate limit, auth, crash, dev-server) and restart cleanly. The runner is inherently resumable; this command codifies the diagnose+resume workflow.
+- `commands/nightshift-debug.md` — when a task hits MAX_FIX_ATTEMPTS, walk through task spec + Claude transcript + validation logs, classify the failure pattern, and propose one of three actions (rewrite task / fix codebase context / implement manually).
+- `examples/todo-simple-example.md` — synthetic 5-task dark-mode toggle. Beginner-friendly counterpart to the 50-task design overhaul.
+- `examples/bulletproof-steps-example.md` — synthetic 10-step production hardening sweep (security headers → auth → observability → performance → consent). Lets users see what BULLETPROOF-STEPS.md input looks like without inheriting BMW/InterviewPilot domain detail.
+
+### Fixed
+
+- 8 inherited shellcheck warnings across `scripts/run-agent-loop.sh`, `scripts/nightshift-bulletproof.sh`, `scripts/test-nightshift.sh` (SC2188 `> "$f"` truncation idiom → `: > "$f"`; SC2155 `local x=$(cmd)` masking → split declare+assign; SC2034 unused `all_comments` var). CI severity restored from `error` to `warning`.
+
+### Changed
+
+- `.claude-plugin/plugin.json` wires the two new slash commands.
+- README repo-layout block reflects the new examples + commands.
+
+## [1.0.0] — 2026-05-26
+
 ## [1.0.0] — 2026-05-26
 
 ### Added

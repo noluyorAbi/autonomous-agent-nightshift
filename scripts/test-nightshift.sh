@@ -69,7 +69,8 @@ done
 ts() { date "+%Y-%m-%d %H:%M:%S"; }
 
 log() {
-  local msg="[$(ts)] $*"
+  local msg
+  msg="[$(ts)] $*"
   echo -e "$msg" | tee -a "$LOG_FILE"
 }
 

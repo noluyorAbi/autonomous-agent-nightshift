@@ -101,6 +101,8 @@ After install, these slash commands trigger directly:
 | `/nightshift-review` | Reads last run's logs, surfaces REVIEW-flagged tasks, summarizes the diff, produces a structured morning report |
 | `/nightshift-bulletproof` | Sets up a production-hardening sweep with branch + commit per step + PR + review-comment healing |
 | `/nightshift-status` | Checks if a nightshift is running, what task it's on, iteration budget, ETA |
+| `/nightshift-resume` | Resumes a nightshift that died mid-run (iteration limit, rate limit, crash) — diagnoses cause and restarts cleanly |
+| `/nightshift-debug` | Triages a task that exhausted retries: reads logs, classifies the failure, proposes rewrite/context-fix/manual-implementation |
 
 Or just talk naturally — the skill triggers on phrases like "set up a nightshift", "review last night's run", "harden this codebase before launch", "is my agent still running?"
 
@@ -232,9 +234,11 @@ templates/
 └── runner-config.env         Tuning presets per scenario
 
 examples/
-├── todo-design-nightshift.md Real (sanitized) 50-task design overhaul
-├── qa-checklist-saas.md      Real (sanitized) 22-section SaaS checklist
-└── bulletproof-summary.log   Real (sanitized) 100-step run timeline
+├── todo-simple-example.md      Synthetic 5-task dark-mode toggle (start here)
+├── bulletproof-steps-example.md Synthetic 10-step production hardening sweep
+├── todo-design-nightshift.md   Real (sanitized) 50-task design overhaul
+├── qa-checklist-saas.md        Real (sanitized) 22-section SaaS checklist
+└── bulletproof-summary.log     Real (sanitized) 100-step run timeline
 
 .github/workflows/lint.yml    CI: shellcheck + markdownlint + plugin.json/SKILL.md validation
 CONTRIBUTING.md               How to contribute (esp. stack adapters + sanitized examples)

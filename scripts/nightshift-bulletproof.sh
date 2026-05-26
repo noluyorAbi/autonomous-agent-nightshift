@@ -434,7 +434,7 @@ call_claude() {
                     done
 
                     log_success "Rate limit sleep complete. Resuming..."
-                    > "$tmpout"
+                    : > "$tmpout"
                     continue
                 fi
             fi

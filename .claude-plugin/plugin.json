@@ -44,6 +44,16 @@
       "name": "nightshift-status",
       "path": "commands/nightshift-status.md",
       "description": "Check status of a currently-running nightshift"
+    },
+    {
+      "name": "nightshift-resume",
+      "path": "commands/nightshift-resume.md",
+      "description": "Resume a nightshift that died mid-run, starting from the last completed task"
+    },
+    {
+      "name": "nightshift-debug",
+      "path": "commands/nightshift-debug.md",
+      "description": "Diagnose a task that exhausted retries — find root cause and propose fix or task rewrite"
     }
   ]
 }

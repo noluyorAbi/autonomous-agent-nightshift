@@ -2,11 +2,13 @@
 
 Every file here is from a production nightshift run on a real codebase, with project-specific identifiers (BMW, InterviewPilot, client/app names) genericized. The structure and patterns are intact so you can see what these documents actually look like in practice — not just a template.
 
-| File | What it is |
-|------|------------|
-| [`todo-design-nightshift.md`](./todo-design-nightshift.md) | 50-task design-system overhaul for a real estate / club website (SV Nord München). Demonstrates Phase 1–N structure, dense Implementation+Validation pairs, Chrome QA contract, and the `— CHROME REVIEW NEEDED` / `— NEEDS MANUAL REVIEW` annotations the runner appends. |
-| [`qa-checklist-saas.md`](./qa-checklist-saas.md) | 22-section production-ship checklist from a German SaaS. Touches OAuth 2.1 / PKCE, Stripe checkout, Supabase RLS, quota enforcement, security headers, observability, legal pages. A useful concrete reference for what "good" looks like. |
-| [`bulletproof-summary.log`](./bulletproof-summary.log) | 100-step Bulletproof run timeline. Read it to see how PASS / FAIL / CHROME / GIT events interleave in practice, and what the rate-limit backoff looks like in the wild. |
+| File | What it is | Read order |
+|------|------------|------------|
+| [`todo-simple-example.md`](./todo-simple-example.md) | **Synthetic** 5-task dark-mode toggle. Pure template fill — no project-specific context. **Start here** for your first nightshift. | 1st |
+| [`bulletproof-steps-example.md`](./bulletproof-steps-example.md) | **Synthetic** 10-step production hardening sweep (CSP, HSTS, rate limiting, Sentry, cookie consent). Shows what `BULLETPROOF-STEPS.md` input looks like. | 2nd |
+| [`todo-design-nightshift.md`](./todo-design-nightshift.md) | **Real (sanitized)** 50-task design-system overhaul. Demonstrates dense Implementation+Validation pairs at scale, Chrome QA contract, and the `— CHROME REVIEW NEEDED` / `— NEEDS MANUAL REVIEW` annotations. | 3rd |
+| [`qa-checklist-saas.md`](./qa-checklist-saas.md) | **Real (sanitized)** 22-section production-ship checklist. OAuth 2.1 / PKCE, Stripe checkout, RLS, quota enforcement, security headers, observability, legal pages. | 4th |
+| [`bulletproof-summary.log`](./bulletproof-summary.log) | **Real (sanitized)** 100-step Bulletproof run timeline. Shows how PASS / FAIL / CHROME / GIT events interleave and what rate-limit backoff looks like in the wild. | 5th |
 
 ## How to read these
 

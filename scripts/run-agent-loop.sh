@@ -448,7 +448,7 @@ call_claude() {
                     summary "  RATE LIMIT: Resumed after ${wait_minutes}min sleep"
 
                     # Reset temp file and retry
-                    > "$tmpout"
+                    : > "$tmpout"
                     continue
                 fi
             fi
@@ -458,7 +458,7 @@ call_claude() {
             log_warn "Falling back to 10 minute wait..."
             summary "  RATE LIMIT: Could not parse time, waiting 10min"
             sleep 600
-            > "$tmpout"
+            : > "$tmpout"
             continue
         fi
 
@@ -484,7 +484,7 @@ call_claude() {
             log_warn "Bumped inter-task cooldown to ${COOLDOWN_SECONDS}s"
         fi
 
-        > "$tmpout"
+        : > "$tmpout"
     done
 
     rm -f "$tmpout"
@@ -597,7 +597,7 @@ handle_pr_comments() {
     log_phase "Phase 7: Addressing PR Comments"
 
     # Fetch all PR comments (review comments + issue comments)
-    local review_comments issue_comments all_comments
+    local review_comments issue_comments
     review_comments=$(gh api "repos/$GITHUB_REPO/pulls/$pr_number/comments" 2>/dev/null || echo "[]")
     issue_comments=$(gh api "repos/$GITHUB_REPO/issues/$pr_number/comments" 2>/dev/null || echo "[]")
 
