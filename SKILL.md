@@ -1,6 +1,6 @@
 ---
 name: autonomous-agent-nightshift
-description: Use when the user wants to run Claude Code agents overnight on their codebase — set up a nightshift, write a todo file with Implementation+Validation pairs, configure an agent loop that implements/tests/validates/retries, or run a bulletproof PR-review loop. Triggers on "nightshift", "autonomous agent", "overnight agent", "agent loop", "bulletproof PR", "let Claude work overnight", "todo file for Claude".
+description: Use when the user wants to run Claude Code agents overnight on a multi-task batch — set up a nightshift, write a todo file with Implementation+Validation pairs, configure an agent loop that implements/tests/validates/retries, or run a bulletproof PR-review loop. Triggers on "nightshift", "autonomous agent", "overnight agent", "bulletproof PR", "let Claude work overnight", "todo file for Claude", "run agents while I sleep". NOT for: single bugfixes (just have Claude do it directly), architecture decisions (discuss first), one-shot refactors, single-task automation, or work that doesn't have 5+ independently-verifiable tasks.
 ---
 
 # Autonomous Agent Nightshift

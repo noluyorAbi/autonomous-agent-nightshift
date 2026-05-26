@@ -4,6 +4,40 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-27
+
+### Fixed (real bugs found via self-audit)
+
+- `commands/nightshift-debug.md` used `sed -i ''` (BSD-only). Replaced with `perl -i -pe` (cross-platform). Linux users would have hit `sed: invalid option -- '''`.
+- Two scripts had `#!/bin/bash` shebang. macOS ships bash 3.2 at `/bin/bash` (Apple stuck on GPLv2). Switched all four scripts to `#!/usr/bin/env bash` for consistency and modern-bash discovery.
+
+### Added (gaps discovered by self-audit)
+
+- **`docs/07-cost-and-safety.md`** — real $$ cost estimates ($0.50/task Sonnet, $1.50/task Opus), pre-launch safety checklist, permission-prompt handling, disaster recovery. **Critical missing context — users had no idea what an overnight run costs.**
+- **`docs/FAQ.md`** — common questions organized by topic (general, cost, setup, during-run, results, skill-specific, defaults rationale).
+- `SECURITY.md` — vulnerability disclosure policy.
+- `.github/ISSUE_TEMPLATE/bug_report.md` — structured bug intake.
+- `.github/ISSUE_TEMPLATE/stack_adapter.md` — template for requesting/contributing new-stack adapters.
+- `.github/PULL_REQUEST_TEMPLATE.md` — PR checklist with sanitization reminder.
+- `.editorconfig` — consistent line endings + indentation across contributors.
+
+### Changed
+
+- **SKILL.md description now includes a `NOT for:` clause** — prevents over-triggering on "single bugfix", "architecture decision", "one-shot refactor" type queries that shouldn't pull in the whole nightshift workflow.
+- README now leads with a **Cost and safety** section before prerequisites. Calling out the real money risk up front.
+- `docs/` index in README updated.
+
+### Why this release
+
+Self-applied audit ("does the repo work, is it a good skill, what's missing") found:
+- 2 real bugs (sed portability, shebang choice)
+- 1 description issue (no NOT-for clause = over-trigger risk)
+- 5 missing files (cost docs, FAQ, security, issue templates, editorconfig)
+
+All addressed. No remaining critical gaps. Outstanding nice-to-haves: end-to-end install.sh test on a fresh machine, asciinema demo recording, marketplace listing.
+
+## [1.1.0] — 2026-05-27
+
 ## [1.1.0] — 2026-05-27
 
 ### Added

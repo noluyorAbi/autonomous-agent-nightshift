@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ============================================================================
 # Autonomous Bulletproof Agent Loop — Nightshift Edition

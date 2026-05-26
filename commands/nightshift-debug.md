@@ -66,8 +66,9 @@ Decide: revert and start clean, or keep partial work and surgically fix?
 **B. Fix the codebase context** — if the agent kept missing files/types/conventions. Update the heredoc in `run-agent-loop.sh`. Then re-run only this task by un-checking the box:
 
 ```bash
-sed -i '' 's/\[x\] \*\*Task 7:/[ ] **Task 7:/' todo-*.md
-# Remove "— NEEDS MANUAL REVIEW" suffix from that line too
+# Cross-platform (works on macOS BSD sed AND Linux GNU sed):
+perl -i -pe 's/\[x\] \*\*Task 7:/[ ] **Task 7:/' todo-*.md
+# Then manually remove the "— NEEDS MANUAL REVIEW" suffix from that line.
 ./start-nightshift.sh start    # runner will pick it up
 ```
 

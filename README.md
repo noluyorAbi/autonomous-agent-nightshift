@@ -219,7 +219,9 @@ docs/
 ├── 03-chrome-testing.md      Live browser MCP testing
 ├── 04-qa-checklist.md        Writing production-ship checklists
 ├── 05-failure-modes.md       Cheatsheet of seen failures + fixes
-└── 06-test-loop.md           Recursive validation loop (no Claude)
+├── 06-test-loop.md           Recursive validation loop (no Claude)
+├── 07-cost-and-safety.md     Real $$ cost estimates + pre-launch checklist
+└── FAQ.md                    Common questions
 
 scripts/
 ├── run-agent-loop.sh         Classic feature-implementation runner
@@ -285,6 +287,22 @@ run_full_validation() {
 ```
 
 Per-stack codebase-context examples and conventions in `docs/01-playbook.md` §11 and §13.
+
+---
+
+## Cost and safety
+
+> **Nightshift spends real money on Claude API calls and modifies your codebase autonomously.** Read [`docs/07-cost-and-safety.md`](./docs/07-cost-and-safety.md) before launching your first run.
+
+Rough cost: **~$0.50 per task (Sonnet) or ~$1.50 (Opus).** A 16-task default run costs $8–25. A 100-step Bulletproof sweep costs $100–500.
+
+Always before launch:
+
+- Commit any work you care about (the agent edits files)
+- Set `MAX_ITERATIONS` (the iteration cap is your worst-case cost cap)
+- Protect `main` via branch protection
+- Set spending limits in Anthropic Console
+- Review the diff in the morning before committing the agent's work
 
 ---
 
