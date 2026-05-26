@@ -54,8 +54,10 @@ jobs:
           head -10 SKILL.md | grep -q '^name:' || { echo "SKILL.md missing name field"; exit 1; }
           head -10 SKILL.md | grep -q '^description:' || { echo "SKILL.md missing description field"; exit 1; }
           desc_len=$(grep '^description:' SKILL.md | head -1 | wc -c)
-          if [ "$desc_len" -gt 500 ]; then
-            echo "SKILL.md description is $desc_len chars (recommend <500 for sharp matching)"
+          # Anthropic-distributed skills range 150-1000 chars (NOT-for clauses add length).
+          # Cap at 1000 to catch true runaway descriptions while allowing rich trigger lists.
+          if [ "$desc_len" -gt 1000 ]; then
+            echo "SKILL.md description is $desc_len chars (recommend <1000)"
             exit 1
           fi
           echo "SKILL.md frontmatter OK"
