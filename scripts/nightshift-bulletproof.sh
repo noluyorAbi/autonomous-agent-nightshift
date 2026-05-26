@@ -442,7 +442,7 @@ call_claude() {
             # Fallback wait
             log_warn "Could not parse reset time. Waiting 10 minutes..."
             sleep 600
-            > "$tmpout"
+            : > "$tmpout"
             continue
         fi
 
@@ -465,7 +465,7 @@ call_claude() {
             log_warn "Bumped inter-step cooldown to ${COOLDOWN_SECONDS}s"
         fi
 
-        > "$tmpout"
+        : > "$tmpout"
     done
 
     rm -f "$tmpout"
