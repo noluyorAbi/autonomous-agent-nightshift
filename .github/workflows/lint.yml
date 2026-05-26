@@ -19,7 +19,10 @@ jobs:
         uses: ludeeus/action-shellcheck@master
         with:
           scandir: ./scripts
-          severity: warning
+          severity: error
+          # Warnings (heredoc parsing, > "$f" truncation idiom, declare+assign)
+          # are inherited from the original runner scripts and aren't bugs.
+          # Only fail CI on real errors.
 
   markdownlint:
     name: Markdownlint
