@@ -4,6 +4,50 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-05-28
+
+### Added — Vite + React site with docs, onboarding, content sync
+
+- **`site/`** — full rewrite from single-file HTML to Vite + React + Tailwind + Framer Motion SPA. Five pages: landing (`/`), install (`/install`), commands (`/commands`), onboarding (`/onboarding`), docs (`/docs/*` with sidebar nav).
+- **Onboarding walkthrough** at `/onboarding` — 7-step interactive tutorial with progress bar, copyable commands per step, framer-motion transitions between steps. Goes from `npm install` to morning review.
+- **Docs pages** at `/docs/*` — renders existing `docs/*.md` files via `react-markdown + remark-gfm` with `?raw` imports. 8 doc pages (playbook, bulletproof, chrome, qa-checklist, failure-modes, test-loop, cost-safety, FAQ) with a sticky sidebar.
+- **`site/scripts/sync-content.ts`** — deterministic content-sync agent that reads canonical source (`package.json`, `commands/*.md`) and regenerates `site/src/content/*.ts`. No LLM calls — pure transformation. Referenced from CLAUDE.md and AGENTS.md.
+- **`.github/workflows/deploy-site.yml`** updated — installs site deps, runs `npm run build` in `site/`, deploys `site/dist/` to GitHub Pages. Triggers on `site/`, `docs/`, `commands/`, `SKILL.md`, or `package.json` changes.
+
+### Added — agentic context files
+
+- **`CLAUDE.md`** — comprehensive working-in-this-repo guide for Claude Code. Project purpose, file map, conventions (no emojis, bash 4+, semver, etc.), when-to-modify-what, what NOT to do, testing/lint commands.
+- **`AGENTS.md`** — multi-agent coordination notes. Roles (maintainer / user-helper / site-sync / self-improving), coordination protocols, tool authority table (what agents may + may not do without confirmation).
+- **`.cursorrules`** — Cursor-specific tight summary of conventions.
+- **`.github/copilot-instructions.md`** — GitHub Copilot context.
+
+### Added — `.claude-plugin/marketplace.json`
+
+- Required by `/plugin marketplace add` — previously missing, caused error: `Marketplace file not found at .../.claude-plugin/marketplace.json`. Now present, lists this repo as a single-plugin marketplace with metadata.
+
+### Changed — repo metadata
+
+- GitHub homepage URL → `https://www.npmjs.com/package/autonomous-agent-nightshift`
+- Description tightened: added "npm CLI" mention, removed "real examples" tail (now sub-product of broader claim).
+- Topics expanded: `claude-code-plugin`, `npm-package`, `cli`, `cli-tool`, `homebrew` added.
+
+### Documentation
+
+- Removed `site/index.html` (single-file static landing) — replaced by Vite app entry.
+
+### Why this release
+
+User asked for:
+1. A more detailed, playful site with Vite + React, docs, and onboarding — to "sell the skill better"
+2. An agent that updates the site based on the actual skill state
+3. Agentic AI markdown files (CLAUDE.md, etc.)
+4. Updated GitHub metadata
+5. Fix for `/plugin marketplace add` error
+
+All five delivered. Plugin marketplace is now functional. Site is a real React app with proper structure to grow into.
+
+## [1.4.0] — 2026-05-27
+
 ## [1.4.0] — 2026-05-27
 
 ### Added — multi-channel distribution

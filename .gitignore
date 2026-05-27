@@ -16,3 +16,5 @@ node_modules/
 
 # Ruflo plugin local memory
 ruvector.db
+site/dist/
+site/node_modules/

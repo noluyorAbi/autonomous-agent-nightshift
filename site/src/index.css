@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-bg text-fg font-sans antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 158, 11, 0.12), transparent),
+    linear-gradient(180deg, #0a0e1f 0%, #060a18 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+@layer components {
+  .container-narrow {
+    @apply max-w-5xl mx-auto px-6;
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-md font-mono text-sm font-medium transition-all border border-transparent;
+  }
+  .btn-primary {
+    @apply bg-accent text-bg hover:bg-fg hover:-translate-y-0.5;
+  }
+  .btn-secondary {
+    @apply border-border-strong text-fg hover:border-accent hover:text-accent;
+  }
+  .card {
+    @apply bg-bg-card border border-border rounded-xl p-6 transition-all;
+  }
+  .card-hover {
+    @apply hover:border-border-strong hover:-translate-y-0.5;
+  }
+  .code-inline {
+    @apply font-mono text-sm bg-bg-elevated border border-border rounded px-1.5 py-0.5 text-accent;
+  }
+  .code-block {
+    @apply font-mono text-sm bg-bg-code border border-border-strong rounded-lg p-4 overflow-x-auto;
+  }
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold tracking-tight mb-3;
+    background: linear-gradient(180deg, #e6e8f0 0%, #aab0c8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .section-subtitle {
+    @apply text-fg-muted text-lg max-w-2xl mb-12;
+  }
+  .terminal-dot {
+    @apply w-3 h-3 rounded-full bg-border-strong;
+  }
+}
+
+/* Subtle starfield in background */
+.starfield {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.25), transparent),
+    radial-gradient(1px 1px at 60% 70%, rgba(255, 255, 255, 0.18), transparent),
+    radial-gradient(1px 1px at 80% 20%, rgba(255, 255, 255, 0.22), transparent),
+    radial-gradient(1px 1px at 30% 80%, rgba(245, 158, 11, 0.3), transparent),
+    radial-gradient(1px 1px at 90% 50%, rgba(255, 255, 255, 0.15), transparent),
+    radial-gradient(2px 2px at 15% 60%, rgba(245, 158, 11, 0.2), transparent);
+  background-size: 100% 100%;
+}
+
+/* Scrollbar polish */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-bg-code;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-border-strong rounded;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-accent-dim;
+}
+
+/* Markdown prose styles for /docs pages */
+.prose-night {
+  @apply text-fg;
+}
+.prose-night h1 {
+  @apply text-3xl font-bold mt-8 mb-4 text-fg;
+}
+.prose-night h2 {
+  @apply text-2xl font-bold mt-8 mb-3 text-fg border-b border-border pb-2;
+}
+.prose-night h3 {
+  @apply text-xl font-semibold mt-6 mb-2 text-fg;
+}
+.prose-night h4 {
+  @apply text-lg font-semibold mt-4 mb-2 text-fg;
+}
+.prose-night p {
+  @apply text-fg-muted my-3 leading-relaxed;
+}
+.prose-night ul, .prose-night ol {
+  @apply text-fg-muted my-3 ml-6 space-y-1;
+}
+.prose-night ul { @apply list-disc; }
+.prose-night ol { @apply list-decimal; }
+.prose-night strong { @apply text-fg font-semibold; }
+.prose-night em { @apply text-fg italic; }
+.prose-night code {
+  @apply font-mono text-sm bg-bg-elevated border border-border rounded px-1.5 py-0.5 text-accent;
+}
+.prose-night pre {
+  @apply font-mono text-sm bg-bg-code border border-border-strong rounded-lg p-4 overflow-x-auto my-4;
+}
+.prose-night pre code {
+  @apply bg-transparent border-0 p-0 text-fg;
+}
+.prose-night blockquote {
+  @apply border-l-4 border-accent-dim bg-accent-glow/20 px-4 py-2 my-4 text-fg italic;
+}
+.prose-night a {
+  @apply text-accent hover:text-fg underline underline-offset-2;
+}
+.prose-night table {
+  @apply w-full my-4 border-collapse;
+}
+.prose-night th {
+  @apply text-left p-3 border border-border text-fg-dim text-sm font-medium uppercase tracking-wider bg-bg-elevated;
+}
+.prose-night td {
+  @apply p-3 border border-border text-fg-muted;
+}
+.prose-night hr {
+  @apply border-border my-8;
+}

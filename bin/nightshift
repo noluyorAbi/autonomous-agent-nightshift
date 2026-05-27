@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="1.4.0"
+VERSION="1.5.0"
 REPO_URL="https://github.com/noluyorAbi/autonomous-agent-nightshift"
 
 # ---- Locate ROOT (where scripts/, templates/, docs/ live) ----

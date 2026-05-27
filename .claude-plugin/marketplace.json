@@ -1,0 +1,38 @@
+{
+  "name": "noluyorAbi-autonomous-agent-nightshift",
+  "owner": {
+    "name": "noluyorAbi",
+    "url": "https://github.com/noluyorAbi"
+  },
+  "metadata": {
+    "description": "Single-plugin marketplace shipping autonomous-agent-nightshift: a Claude Code skill + plugin for running AI agents overnight on your codebase. Six slash commands, bash harness, Chrome MCP, Bulletproof PR mode.",
+    "version": "1.4.0"
+  },
+  "plugins": [
+    {
+      "name": "autonomous-agent-nightshift",
+      "source": ".",
+      "description": "Run Claude Code agents overnight on your codebase. Write a todo file with Implementation+Validation pairs, launch, wake up to validated code. Skill + 6 slash commands + bash harness.",
+      "version": "1.4.0",
+      "author": {
+        "name": "noluyorAbi",
+        "url": "https://github.com/noluyorAbi"
+      },
+      "homepage": "https://github.com/noluyorAbi/autonomous-agent-nightshift",
+      "repository": "https://github.com/noluyorAbi/autonomous-agent-nightshift",
+      "license": "MIT",
+      "keywords": [
+        "claude-code",
+        "skill",
+        "autonomous-agent",
+        "agent-loop",
+        "overnight-agent",
+        "nightshift",
+        "ai-coding",
+        "tdd",
+        "bulletproof",
+        "mcp"
+      ]
+    }
+  ]
+}

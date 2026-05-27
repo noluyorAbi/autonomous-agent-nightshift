@@ -1,0 +1,48 @@
+You are working on `autonomous-agent-nightshift`, a Claude Code skill + bash harness + npm CLI that runs AI agents overnight on user codebases.
+
+CRITICAL CONVENTIONS:
+- No emojis anywhere — code, docs, commits, comments. None.
+- Bash 4+ compat. Shebang is `#!/usr/bin/env bash` (never `#!/bin/bash` — macOS bash 3.2).
+- `set -euo pipefail` in every script. `shellcheck -S warning` must pass.
+- Use `: > "$f"` for truncation, never `> "$f"` (SC2188).
+- Cross-platform: prefer `perl -i -pe` over `sed -i ''` (BSD-only).
+- No new dependencies in bash scripts. Only `claude`, `gh`, `git`, `bash` assumed.
+
+PROJECT STRUCTURE:
+- `SKILL.md` — Claude Code skill manifest. Triggers on phrases. Description 150-1000 chars with `NOT for:` clause.
+- `.claude-plugin/plugin.json` — Plugin manifest with 6 slash commands.
+- `.claude-plugin/marketplace.json` — Marketplace manifest for `/plugin marketplace add`.
+- `commands/nightshift-*.md` — Slash commands. Frontmatter `description:` only. Body = workflow.
+- `scripts/` — Bash runners (run-agent-loop.sh, nightshift-bulletproof.sh, etc.)
+- `bin/nightshift` — Unified CLI dispatcher.
+- `docs/01-playbook.md` — Master 47KB guide. Canonical reference.
+- `templates/` — Blank skeletons users copy into their projects.
+- `examples/` — Reference artifacts (NEVER templates).
+- `site/` — Vite + React landing page deployed to GitHub Pages.
+
+VERSIONING:
+- Semver. Patch = bugfix. Minor = new commands/features. Major = breaking.
+- Tag as `vX.Y.Z`. CI auto-builds tarball on tag.
+- CHANGELOG.md updated for every user-visible change.
+
+WHEN MAKING CHANGES:
+- Adding a slash command: also update plugin.json, install.sh hint list, bin/nightshift help, README table, CHANGELOG.
+- Adding a doc: update README repo-layout, cross-link, increment numbering.
+- Touching scripts: shellcheck pass, test idempotency, cross-platform sed.
+- Updating SKILL.md description: keep 150-1000 chars, include NOT-for clause.
+
+NEVER:
+- Add tracking/telemetry/phone-home.
+- Auto-commit changes the user's agent makes (classic runner never commits).
+- Prompt inside the runner loop (it's detached overnight).
+- Add emojis.
+- Bundle API keys anywhere — `claude` CLI manages auth.
+
+ALWAYS:
+- Surface cost implications of features that call `claude -p` (it costs real money).
+- Respect MAX_ITERATIONS as cost cap.
+- Document why a release shipped (CHANGELOG "Why this release" section).
+- Test on macOS and Linux paths (BSD sed != GNU sed).
+- Read `docs/01-playbook.md` if you're unsure about behavior intent.
+
+For full conventions see CLAUDE.md. For multi-agent coordination see AGENTS.md.
