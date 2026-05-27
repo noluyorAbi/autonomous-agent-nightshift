@@ -32,9 +32,12 @@ jobs:
           shasum -a 256 "dist/autonomous-agent-nightshift-${VERSION}.tar.gz" \
             > "dist/autonomous-agent-nightshift-${VERSION}.tar.gz.sha256"
 
-      - name: Upload assets to existing release
+      - name: Create release (if missing) and upload assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
           gh release upload "$TAG" dist/* --clobber
