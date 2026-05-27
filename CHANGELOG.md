@@ -4,6 +4,34 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-05-27
+
+### Added — multi-channel distribution
+
+- **`bin/nightshift`** — unified CLI dispatcher (bash). Subcommands: `init`, `bulletproof-init`, `start`, `stop`, `status`, `tail`, `review`, `resume`, `version`, `help`. Resolves install root regardless of channel (npm global, Homebrew Cellar, tarball, git clone, or skills dir). Symlink-aware (`while [ -L "$src" ]`).
+- **`package.json`** — npm-installable. `npm install -g autonomous-agent-nightshift` ships the `nightshift` CLI. `npx autonomous-agent-nightshift init my-feature` for one-shot bootstrap.
+- **`Formula/nightshift.rb`** — Homebrew formula. `brew install noluyorAbi/tap/nightshift` (when tap is published) or `brew install --HEAD` from raw URL today.
+- **`.github/workflows/release.yml`** — on tag push, builds tarball + SHA256 and attaches to the GitHub Release. Enables `curl -L .../releases/latest/download/*.tar.gz | tar xz` install.
+- **`.npmignore`** — keeps `.github/`, `.git/`, `Formula/`, dev artifacts out of the npm payload.
+
+### Changed — README install matrix
+
+- Install section restructured as a channel matrix table (npm / Homebrew / curl / plugin / tarball / git clone) with a "what each gives you" comparison (CLI vs skill vs slash commands).
+- New `## CLI` section after Install showing `nightshift init / start / tail / status / review / resume / bulletproof-init`.
+
+### Verified
+
+- `bin/nightshift version` resolves install root correctly: ✓
+- `bin/nightshift help` renders with colors when TTY, plain when piped: ✓
+- `bin/nightshift init test-feature` in tmp dir: bootstraps todo + runner, sed-substitutes TODO_FILE, appends `.gitignore`: ✓ (tested on macOS BSD sed path)
+- `bash -n bin/nightshift` syntax check: ✓
+
+### Why this release
+
+User asked: "make it run so I can download as skill, npm package, cli tool etc". v1.3 was install-as-skill-only. v1.4 ships **6 install channels** for the same underlying tool. CLI tool is the new primary user-facing artifact for non-Claude-Code users.
+
+## [1.3.0] — 2026-05-27
+
 ## [1.3.0] — 2026-05-27
 
 ### Removed (sanitization for public release)

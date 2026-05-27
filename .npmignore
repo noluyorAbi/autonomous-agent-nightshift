@@ -1,0 +1,12 @@
+.github/
+.git/
+.gitignore
+.editorconfig
+.claude_iterations
+.agent-logs/
+node_modules/
+dist/
+Formula/
+ruvector.db
+*.swp
+.DS_Store

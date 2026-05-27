@@ -47,43 +47,129 @@ Failed tasks get `[x] -- NEEDS MANUAL REVIEW` and the loop moves on. You triage 
 
 ## Install
 
-> [!NOTE]
-> **One-liner installer** clones this repo into your Claude Code skills directory. After install, restart Claude Code so it picks up the skill and slash commands.
+Pick whichever channel matches your tooling.
+
+<table>
+<thead>
+<tr><th width="22%">Channel</th><th>Command</th></tr>
+</thead>
+<tbody>
+
+<tr>
+<td><strong>npm</strong><br><sub>recommended</sub></td>
+<td>
+
+```bash
+npm install -g autonomous-agent-nightshift
+# or one-shot:
+npx autonomous-agent-nightshift init my-feature
+```
+
+</td>
+</tr>
+
+<tr>
+<td><strong>Homebrew</strong></td>
+<td>
+
+```bash
+brew install noluyorAbi/tap/nightshift
+# or directly from repo (no tap yet):
+brew install --HEAD https://raw.githubusercontent.com/noluyorAbi/autonomous-agent-nightshift/main/Formula/nightshift.rb
+```
+
+</td>
+</tr>
+
+<tr>
+<td><strong>curl one-liner</strong><br><sub>installs as Claude Code skill</sub></td>
+<td>
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/noluyorAbi/autonomous-agent-nightshift/main/bin/install.sh | bash
 ```
 
-<details>
-<summary><strong>Other install paths</strong></summary>
+</td>
+</tr>
 
-<br>
+<tr>
+<td><strong>Claude Code plugin</strong></td>
+<td>
 
-**Project-level** (only this project):
-```bash
-curl -fsSL https://raw.githubusercontent.com/noluyorAbi/autonomous-agent-nightshift/main/bin/install.sh | bash -s -- --project
-```
-
-**Manual skill install:**
-```bash
-git clone https://github.com/noluyorAbi/autonomous-agent-nightshift ~/.claude/skills/autonomous-agent-nightshift
-```
-
-**As a plugin** (custom marketplace):
 ```
 /plugin marketplace add noluyorAbi/autonomous-agent-nightshift
 /plugin install autonomous-agent-nightshift
 ```
 
-**Bash-only** (no Claude Code skill, just scripts):
+</td>
+</tr>
+
+<tr>
+<td><strong>GitHub Release tarball</strong></td>
+<td>
+
 ```bash
-git clone https://github.com/noluyorAbi/autonomous-agent-nightshift /tmp/nightshift
-cp /tmp/nightshift/scripts/run-agent-loop.sh ./
-cp /tmp/nightshift/scripts/start-nightshift.sh ./
-cp /tmp/nightshift/templates/todo-template.md ./todo-$(date +%Y_%m_%d)_my-feature.md
+curl -fsSL https://github.com/noluyorAbi/autonomous-agent-nightshift/releases/latest/download/autonomous-agent-nightshift.tar.gz | tar xz
 ```
 
+</td>
+</tr>
+
+<tr>
+<td><strong>Git clone</strong><br><sub>full repo</sub></td>
+<td>
+
+```bash
+git clone https://github.com/noluyorAbi/autonomous-agent-nightshift
+```
+
+</td>
+</tr>
+
+</tbody>
+</table>
+
+> [!NOTE]
+> After installing as a skill (curl one-liner or git clone into `~/.claude/skills/`), **restart Claude Code** so it picks up the skill and slash commands.
+
+<details>
+<summary><strong>What each channel gives you</strong></summary>
+
+<br>
+
+<table>
+<thead><tr><th>Channel</th><th>CLI <code>nightshift</code></th><th>Claude Code skill</th><th>Slash commands</th></tr></thead>
+<tbody>
+<tr><td>npm</td><td>yes</td><td>no <sub>(add via skill install separately)</sub></td><td>no</td></tr>
+<tr><td>Homebrew</td><td>yes</td><td>no <sub>(add via skill install separately)</sub></td><td>no</td></tr>
+<tr><td>curl one-liner</td><td>no</td><td>yes</td><td>yes <sub>(via plugin manifest)</sub></td></tr>
+<tr><td>Claude Code plugin</td><td>no</td><td>yes</td><td>yes</td></tr>
+<tr><td>tarball / git clone</td><td>yes <sub>(via PATH)</sub></td><td>only if cloned into <code>~/.claude/skills/</code></td><td>only via plugin install</td></tr>
+</tbody>
+</table>
+
+The CLI tool, skill, and slash commands are orthogonal &mdash; you can use any combination. For full power, install via npm/brew (CLI) <strong>and</strong> the curl one-liner (skill+commands).
+
 </details>
+
+<hr>
+
+## CLI
+
+After `npm install -g` or `brew install`, the `nightshift` command is on your PATH:
+
+```bash
+nightshift init add-dark-mode       # bootstrap todo + runner in cwd
+nightshift start                    # launch detached
+nightshift tail                     # follow the summary log
+nightshift status                   # alive? what task?
+nightshift review                   # morning report
+nightshift resume                   # diagnose + restart after a stop
+nightshift bulletproof-init         # bootstrap a Bulletproof PR sweep
+nightshift help                     # all commands
+```
+
+The CLI dispatches to the bundled bash scripts and templates. Resolves install root regardless of channel (npm global, Homebrew Cellar, tarball, git clone, or `~/.claude/skills/`).
 
 <hr>
 

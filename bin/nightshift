@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+# ============================================================================
+# nightshift — unified CLI for autonomous-agent-nightshift
+# ============================================================================
+# Dispatches to bundled scripts and templates regardless of install path
+# (git clone, npm global, Homebrew, or skill at ~/.claude/skills/).
+# ============================================================================
+
+set -euo pipefail
+
+VERSION="1.4.0"
+REPO_URL="https://github.com/noluyorAbi/autonomous-agent-nightshift"
+
+# ---- Locate ROOT (where scripts/, templates/, docs/ live) ----
+resolve_root() {
+    # Explicit override
+    if [ -n "${NIGHTSHIFT_ROOT:-}" ] && [ -f "$NIGHTSHIFT_ROOT/SKILL.md" ]; then
+        echo "$NIGHTSHIFT_ROOT"; return
+    fi
+    # Resolve symlinks for the executable
+    local src="${BASH_SOURCE[0]}"
+    while [ -L "$src" ]; do
+        local dir
+        dir="$(cd -P "$(dirname "$src")" && pwd)"
+        src="$(readlink "$src")"
+        [[ $src != /* ]] && src="$dir/$src"
+    done
+    local script_dir
+    script_dir="$(cd -P "$(dirname "$src")" && pwd)"
+
+    # Walk up looking for SKILL.md
+    local d="$script_dir"
+    for _ in 1 2 3 4; do
+        if [ -f "$d/SKILL.md" ]; then echo "$d"; return; fi
+        d="$(dirname "$d")"
+    done
+
+    echo "ERROR: cannot locate nightshift install root (looked from $script_dir upward)" >&2
+    echo "       set NIGHTSHIFT_ROOT to the install directory" >&2
+    exit 1
+}
+
+ROOT="$(resolve_root)"
+SCRIPTS="$ROOT/scripts"
+TEMPLATES="$ROOT/templates"
+DOCS="$ROOT/docs"
+
+# ---- Colors ----
+if [ -t 1 ]; then
+    BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
+    RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'
+else
+    BOLD=''; DIM=''; NC=''; RED=''; GREEN=''; YELLOW=''; CYAN=''
+fi
+
+# ---- Helpers ----
+die() { echo -e "${RED}error:${NC} $*" >&2; exit 1; }
+info() { echo -e "${CYAN}::${NC} $*"; }
+ok() { echo -e "${GREEN}ok${NC} $*"; }
+
+# ============================================================================
+# Subcommands
+# ============================================================================
+
+cmd_init() {
+    local name="${1:-feature}"
+    local date_str
+    date_str="$(date +%Y_%m_%d)"
+    local todo="todo-${date_str}_${name}.md"
+
+    [ -f "$todo" ] && die "$todo already exists"
+
+    info "Bootstrapping nightshift in $(pwd)..."
+
+    cp "$TEMPLATES/todo-template.md" "$todo"
+    cp "$SCRIPTS/run-agent-loop.sh" ./run-agent-loop.sh
+    cp "$SCRIPTS/start-nightshift.sh" ./start-nightshift.sh
+    chmod +x ./run-agent-loop.sh ./start-nightshift.sh
+
+    # Update TODO_FILE reference inside the runner
+    if [ "$(uname)" = "Darwin" ]; then
+        sed -i '' "s|TODO_FILE=\"todo-YYYY_MM_DD_name.md\"|TODO_FILE=\"$todo\"|" ./run-agent-loop.sh
+    else
+        sed -i "s|TODO_FILE=\"todo-YYYY_MM_DD_name.md\"|TODO_FILE=\"$todo\"|" ./run-agent-loop.sh
+    fi
+
+    # .gitignore additions
+    if [ -f .gitignore ]; then
+        grep -q "^\.agent-logs" .gitignore || echo ".agent-logs/" >> .gitignore
+        grep -q "^\.claude_iterations" .gitignore || echo ".claude_iterations" >> .gitignore
+    fi
+
+    ok "Bootstrapped:"
+    echo "  $todo                  (edit: add Implementation+Validation tasks)"
+    echo "  run-agent-loop.sh      (edit: paste codebase context heredoc, set validation gate)"
+    echo "  start-nightshift.sh    (no edits)"
+    echo ""
+    echo "Next:"
+    echo "  1. \$EDITOR $todo"
+    echo "  2. \$EDITOR run-agent-loop.sh    # CODEBASE_CONTEXT + run_full_validation()"
+    echo "  3. ./start-nightshift.sh start"
+    echo ""
+    echo "Docs: $REPO_URL"
+}
+
+cmd_bulletproof_init() {
+    local plan="${1:-BULLETPROOF-STEPS.md}"
+
+    [ -f "$plan" ] && die "$plan already exists"
+
+    info "Bootstrapping Bulletproof run in $(pwd)..."
+
+    if [ -f "$ROOT/examples/bulletproof-steps-example.md" ]; then
+        cp "$ROOT/examples/bulletproof-steps-example.md" "$plan"
+    else
+        cp "$TEMPLATES/todo-template.md" "$plan"
+    fi
+    cp "$SCRIPTS/nightshift-bulletproof.sh" ./nightshift-bulletproof.sh
+    chmod +x ./nightshift-bulletproof.sh
+
+    ok "Bootstrapped:"
+    echo "  $plan                          (edit: add Step N entries)"
+    echo "  nightshift-bulletproof.sh       (edit: PLAN_FILE, GITHUB_REPO, codebase context)"
+    echo ""
+    echo "Pre-flight needs: gh auth status + gh auth refresh -s repo"
+}
+
+cmd_start() {
+    [ -x ./start-nightshift.sh ] || die "no ./start-nightshift.sh in cwd. Run 'nightshift init' first."
+    ./start-nightshift.sh start
+}
+
+cmd_stop() {
+    [ -x ./start-nightshift.sh ] || die "no ./start-nightshift.sh in cwd"
+    ./start-nightshift.sh stop
+}
+
+cmd_status() {
+    if [ -x ./start-nightshift.sh ]; then
+        ./start-nightshift.sh status
+    else
+        die "no ./start-nightshift.sh in cwd"
+    fi
+}
+
+cmd_tail() {
+    [ -x ./start-nightshift.sh ] || die "no ./start-nightshift.sh in cwd"
+    ./start-nightshift.sh tail
+}
+
+cmd_review() {
+    local summary=".agent-logs/nightshift-summary.log"
+    [ -f "$summary" ] || die "no $summary found. Has the run completed?"
+
+    echo "${BOLD}=== Summary ===${NC}"
+    tail -30 "$summary"
+    echo ""
+    echo "${BOLD}=== Review-flagged tasks ===${NC}"
+    grep -E 'REVIEW|FAILED' todo-*.md 2>/dev/null || echo "  (none — clean run)"
+    echo ""
+    echo "${BOLD}=== Diff stat ===${NC}"
+    git diff --stat 2>/dev/null || echo "  (not a git repo)"
+    echo ""
+    echo "${BOLD}=== Next steps ===${NC}"
+    echo "  1. Read each REVIEW-flagged task body + .agent-logs/task-{N}.log"
+    echo "  2. Spot-check screenshots: ls .agent-logs/screenshots/"
+    echo "  3. Stage what you accept: git add -p"
+    echo "  4. Commit: git commit"
+}
+
+cmd_resume() {
+    [ -x ./start-nightshift.sh ] || die "no ./start-nightshift.sh in cwd"
+    info "Resume protocol:"
+    echo "  1. Diagnose why it stopped (iteration cap / rate limit / auth / dev-server)"
+    echo "  2. Fix root cause"
+    echo "  3. Optional: reset counter for fresh budget: echo '0' > .claude_iterations"
+    echo "  4. ./start-nightshift.sh start"
+    echo ""
+    echo "Full protocol: $REPO_URL/blob/main/commands/nightshift-resume.md"
+}
+
+cmd_version() {
+    echo "nightshift $VERSION"
+    echo "Install root: $ROOT"
+    echo "Repo: $REPO_URL"
+}
+
+cmd_help() {
+    cat <<EOF
+${BOLD}nightshift${NC} $VERSION — autonomous Claude Code agent runner
+
+${BOLD}USAGE${NC}
+  nightshift <command> [args]
+
+${BOLD}COMMANDS${NC}
+  ${GREEN}init${NC} [name]              Bootstrap a new nightshift in the current dir
+  ${GREEN}bulletproof-init${NC} [plan]  Bootstrap a Bulletproof PR-sweep run
+  ${GREEN}start${NC}                    Launch the configured run (detached)
+  ${GREEN}stop${NC}                     Halt the running nightshift
+  ${GREEN}status${NC}                   Is it alive? What task?
+  ${GREEN}tail${NC}                     Follow the summary log
+  ${GREEN}review${NC}                   Morning report: summary, REVIEW flags, diff
+  ${GREEN}resume${NC}                   Diagnose + restart after a stop
+  ${GREEN}help${NC} [cmd]               Show this help
+  ${GREEN}version${NC}                  Print version + install root
+
+${BOLD}TYPICAL FLOW${NC}
+  ${DIM}# Setup${NC}
+  cd your-project
+  nightshift init add-dark-mode
+  \$EDITOR todo-*.md            ${DIM}# write tasks${NC}
+  \$EDITOR run-agent-loop.sh    ${DIM}# paste codebase context, set validation gate${NC}
+
+  ${DIM}# Launch${NC}
+  nightshift start
+  nightshift tail               ${DIM}# follow log${NC}
+
+  ${DIM}# Sleep${NC}
+
+  ${DIM}# Review${NC}
+  nightshift status
+  nightshift review
+  git diff --stat
+  git add -p && git commit
+
+${BOLD}REQUIREMENTS${NC}
+  claude CLI (https://docs.claude.com/en/docs/claude-code)
+  bash 4+
+  Your project's lint, type-check, test, build commands
+
+${BOLD}DOCS${NC}
+  $REPO_URL
+  $ROOT/docs/01-playbook.md     ${DIM}(master guide)${NC}
+  $ROOT/docs/07-cost-and-safety.md  ${DIM}(read before launching)${NC}
+
+${BOLD}COST${NC}
+  ~\$0.50/task (Sonnet)  ·  ~\$1.50/task (Opus)
+  Default overnight run: \$8-50.  Always set MAX_ITERATIONS as your cost cap.
+EOF
+}
+
+# ============================================================================
+# Dispatch
+# ============================================================================
+
+main() {
+    if [ $# -eq 0 ]; then
+        cmd_help
+        exit 0
+    fi
+
+    local cmd="$1"; shift || true
+
+    case "$cmd" in
+        init)              cmd_init "$@" ;;
+        bulletproof-init)  cmd_bulletproof_init "$@" ;;
+        start)             cmd_start "$@" ;;
+        stop)              cmd_stop "$@" ;;
+        status)            cmd_status "$@" ;;
+        tail)              cmd_tail "$@" ;;
+        review)            cmd_review "$@" ;;
+        resume)            cmd_resume "$@" ;;
+        version|--version|-v) cmd_version ;;
+        help|--help|-h|"") cmd_help ;;
+        *)
+            echo "Unknown command: $cmd" >&2
+            echo "Run 'nightshift help' for available commands." >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

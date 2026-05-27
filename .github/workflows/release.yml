@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build tarball and attach to GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          tar --exclude='.git' --exclude='.github' --exclude='dist' --exclude='node_modules' \
+              -czf "dist/autonomous-agent-nightshift-${VERSION}.tar.gz" .
+          shasum -a 256 "dist/autonomous-agent-nightshift-${VERSION}.tar.gz" \
+            > "dist/autonomous-agent-nightshift-${VERSION}.tar.gz.sha256"
+
+      - name: Upload assets to existing release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload "$TAG" dist/* --clobber
