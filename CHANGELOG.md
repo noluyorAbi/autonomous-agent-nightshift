@@ -4,6 +4,19 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-05-28
+
+### Fixed (real bug reported via screenshot)
+
+- **`bin/nightshift help` displayed literal `\033[1m` escape codes** instead of bold/colored text. Cause: color variables used single-quoted strings (`BOLD='\033[1m'`) which stay as literal 6-char strings; `cat <<EOF` heredoc does not interpret backslash escapes. Fix: ANSI-C quoting (`BOLD=$'\033[1m'`) so vars contain real ESC bytes that terminals interpret correctly.
+- Affects: all CLI subcommands that print colored output via heredoc (help, version, init).
+
+### Why this release
+
+User screenshot showed `nightshift help` output with raw escape sequences instead of rendered colors. Real, visible regression in v1.4.0 and v1.5.0. Fixed.
+
+## [1.5.0] — 2026-05-28
+
 ## [1.5.0] — 2026-05-28
 
 ### Added — Vite + React site with docs, onboarding, content sync

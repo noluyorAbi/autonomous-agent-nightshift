@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="1.5.0"
+VERSION="1.5.1"
 REPO_URL="https://github.com/noluyorAbi/autonomous-agent-nightshift"
 
 # ---- Locate ROOT (where scripts/, templates/, docs/ live) ----
@@ -45,9 +45,13 @@ SCRIPTS="$ROOT/scripts"
 TEMPLATES="$ROOT/templates"
 
 # ---- Colors ----
+# Use ANSI-C quoting ($'...') so vars contain real ESC bytes, not literal \033.
+# This matters because `cat <<EOF` does NOT interpret backslash escapes — it
+# outputs the variable contents byte-for-byte. With single-quoted '\033[1m',
+# users would see literal "\033[1m" in help output instead of bold.
 if [ -t 1 ]; then
-    BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
-    RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'
+    BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
+    RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; CYAN=$'\033[0;36m'
 else
     BOLD=''; DIM=''; NC=''; RED=''; GREEN=''; CYAN=''
 fi
