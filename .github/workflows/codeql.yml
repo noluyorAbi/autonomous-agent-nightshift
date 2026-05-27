@@ -24,13 +24,6 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
-          paths:
-            - site
-            - bin
-          paths-ignore:
-            - site/node_modules
-            - site/dist
-            - node_modules
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

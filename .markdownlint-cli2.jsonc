@@ -16,6 +16,8 @@
     "MD026": false,
     // Blank lines around lists — pure style
     "MD032": false,
+    // Blank lines around fenced code blocks — pure style
+    "MD031": false,
     // Inline HTML — README uses <details>, <table>, <kbd>, etc.
     "MD033": false,
     // Bare URLs — less noise in install/cost docs
