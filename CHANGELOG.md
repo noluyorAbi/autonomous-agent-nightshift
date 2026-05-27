@@ -4,6 +4,13 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- `USAGE.md` — consolidated how-to-use guide with three install paths (Claude Code plugin / npm CLI / pure bash) and a comprehensive troubleshooting section. Surfaces the "must run `/plugin install` AFTER `/plugin marketplace add`" gotcha that's been the most common cause of "I installed but don't see the skill".
+- README install section now links to `USAGE.md` and clarifies the `/plugin install` + full restart requirement for plugin installs.
+- `.github/workflows/npm-publish.yml` — auto-publish to npm on tag push. Requires `NPM_TOKEN` secret with "Bypass 2FA when publishing" enabled. Fails-safe (warns, doesn't fail) when secret is missing.
+- Branch protection on `main` with 8 required status checks: ShellCheck, Markdownlint, JSON validation, SKILL.md frontmatter, CLI smoke test, npm pack dry-run, site build, CodeQL. No force-push, no deletion.
+
 ## [1.5.2] — 2026-05-28
 
 ### Added — auto-update notification + self-update command

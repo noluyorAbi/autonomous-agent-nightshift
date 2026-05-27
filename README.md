@@ -52,7 +52,7 @@ Failed tasks get `[x] -- NEEDS MANUAL REVIEW` and the loop moves on. You triage 
 
 ## Install
 
-Pick whichever channel matches your tooling.
+Pick whichever channel matches your tooling. Full walkthrough: [USAGE.md](./USAGE.md).
 
 <table>
 <thead>
@@ -135,7 +135,7 @@ git clone https://github.com/noluyorAbi/autonomous-agent-nightshift
 </table>
 
 > [!NOTE]
-> After installing as a skill (curl one-liner or git clone into `~/.claude/skills/`), **restart Claude Code** so it picks up the skill and slash commands.
+> For the plugin path, `/plugin marketplace add` only registers the source. You must run `/plugin install autonomous-agent-nightshift`, then **fully quit and relaunch Claude Code**. The same restart applies if you install as a skill (curl one-liner or git clone into `~/.claude/skills/`).
 
 <details>
 <summary><strong>What each channel gives you</strong></summary>
