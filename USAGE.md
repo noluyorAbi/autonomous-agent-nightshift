@@ -76,6 +76,7 @@ nightshift init add-dark-mode
 # Launch
 nightshift start
 nightshift tail              # follow the summary log
+nightshift ui                # interactive TUI (tasks, logs, status)
 
 # Sleep
 

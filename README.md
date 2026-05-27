@@ -167,6 +167,7 @@ After `npm install -g` or `brew install`, the `nightshift` command is on your PA
 nightshift init add-dark-mode       # bootstrap todo + runner in cwd
 nightshift start                    # launch detached
 nightshift tail                     # follow the summary log
+nightshift ui                       # interactive TUI (tasks, logs, status)
 nightshift status                   # alive? what task?
 nightshift review                   # morning report
 nightshift resume                   # diagnose + restart after a stop

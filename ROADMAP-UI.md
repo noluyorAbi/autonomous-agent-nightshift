@@ -101,51 +101,51 @@ Goal: make the CLI feel like Claude Code with an interactive TUI that shows task
 ## Implementation stages
 
 ### Stage 1 — UX spec and flows
-**Deliverables**
+#### Deliverables
 - UI wireframe and layout rules (widths, truncation, colors)
 - Keybinding map and help overlay content
 - Screen flows: setup, run, review, resume
 
-**Acceptance criteria**
+#### Acceptance criteria
 - A single-page spec that is precise enough to implement without guesswork
 
 ### Stage 2 — TUI core (bash-first)
-**Deliverables**
+#### Deliverables
 - `scripts/ui/render.sh` for ANSI drawing
 - `scripts/ui/input.sh` for key handling
 - `scripts/ui/layout.sh` for pane sizes
 - `scripts/ui/colors.sh` for consistent theming
 
-**Acceptance criteria**
+#### Acceptance criteria
 - Works on macOS and Linux
 - No external dependencies beyond bash, coreutils, git
 
 ### Stage 3 — State + events
-**Deliverables**
+#### Deliverables
 - `run_state.json` schema + writer helpers
 - `run_events.jsonl` event emitter
 - Update points in `run-agent-loop.sh` to emit events
 
-**Acceptance criteria**
+#### Acceptance criteria
 - UI shows current task, phase, and last error within 1 second of change
 
 ### Stage 4 — CLI integration
-**Deliverables**
+#### Deliverables
 - `nightshift ui` command in `bin/nightshift`
 - Non-TTY fallback to `nightshift tail`
 - Help + USAGE updates
 
-**Acceptance criteria**
+#### Acceptance criteria
 - `nightshift ui` works in any repo with an active run
 - Zero behavior change to existing commands
 
 ### Stage 5 — Quality and release
-**Deliverables**
+#### Deliverables
 - Golden-output snapshots for key UI states
 - Smoke-test: init → start → ui
 - Docs + changelog entry
 
-**Acceptance criteria**
+#### Acceptance criteria
 - CI green; no regressions in existing lint and smoke tests
 
 ---
@@ -154,9 +154,9 @@ Goal: make the CLI feel like Claude Code with an interactive TUI that shows task
 
 - `bin/nightshift` — new `ui` subcommand and help text
 - `scripts/run-agent-loop.sh` — emit state + events
-- `scripts/start-nightshift.sh` — optional UI launch on start
+- `scripts/nightshift-ui.sh` — TUI implementation
 - `USAGE.md` and README — document the new UI
-- New `scripts/ui/*.sh` modules
+- `scripts/nightshift-ui.sh` helpers (layout, input, rendering)
 
 ---
 

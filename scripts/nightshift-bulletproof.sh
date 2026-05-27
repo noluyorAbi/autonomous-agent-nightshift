@@ -35,6 +35,9 @@ LOG_DIR=".agent-logs"
 SCREENSHOT_DIR="$LOG_DIR/screenshots"
 SUMMARY_LOG="$LOG_DIR/bulletproof-summary.log"
 ITERATION_STATE_FILE=".claude_iterations"
+STATE_FILE="$LOG_DIR/run_state.json"
+EVENTS_FILE="$LOG_DIR/run_events.jsonl"
+PID_FILE="$LOG_DIR/runner.pid"
 
 # --- Git ---
 BASE_BRANCH="main"                                       # <-- Your base branch
@@ -53,6 +56,7 @@ MAX_CHROME_FIX_ATTEMPTS=3
 COOLDOWN_SECONDS=5
 COOLDOWN_MAX=120
 DEV_SERVER_WAIT=30
+COST_PER_ITERATION_USD="${COST_PER_ITERATION_USD:-0}"
 
 # --- Filters (set via CLI args) ---
 FILTER_FROM=1
@@ -61,6 +65,17 @@ FILTER_CATEGORY=""
 SKIP_CHROME=false
 SKIP_PR=false
 DRY_RUN=false
+
+# --- Runtime state (for UI) ---
+RUN_STATUS="starting"
+RUN_PHASE="preflight"
+TASK_INDEX=0
+TASK_TOTAL=0
+TASK_NAME=""
+LAST_ERROR=""
+VALIDATION_ATTEMPT=0
+CHROME_ATTEMPT=0
+ITERATIONS=0
 
 # ======================== PARSE CLI ARGS ========================
 while [[ $# -gt 0 ]]; do
@@ -127,6 +142,73 @@ log_step() {
 }
 summary() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$SUMMARY_LOG"
+}
+
+# ======================== STATE + EVENTS ========================
+json_escape() {
+    local s="${1:-}"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
+calc_cost() {
+    if [ "${COST_PER_ITERATION_USD}" = "0" ]; then
+        echo ""
+        return 0
+    fi
+    awk -v iters="${ITERATIONS}" -v cost="${COST_PER_ITERATION_USD}" 'BEGIN { printf "%.2f", iters * cost }'
+}
+
+write_state() {
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    local updated_at cost
+    updated_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+    cost=$(calc_cost)
+
+    cat > "$STATE_FILE" <<EOF
+{
+  "version": 1,
+  "runner": "bulletproof",
+  "status": "$(json_escape "$RUN_STATUS")",
+  "phase": "$(json_escape "$RUN_PHASE")",
+  "cwd": "$(json_escape "$(pwd)")",
+  "plan_file": "$(json_escape "$PLAN_FILE")",
+  "summary_log": "$(json_escape "$SUMMARY_LOG")",
+  "task_index": $TASK_INDEX,
+  "task_total": $TASK_TOTAL,
+  "task_name": "$(json_escape "$TASK_NAME")",
+  "iteration": $ITERATIONS,
+  "max_iterations": $MAX_ITERATIONS,
+  "cost_usd_estimate": "$(json_escape "$cost")",
+  "validation": {
+    "attempt": $VALIDATION_ATTEMPT,
+    "max_attempts": $MAX_FIX_ATTEMPTS,
+    "last_error": "$(json_escape "$LAST_ERROR")"
+  },
+  "chrome": {
+    "enabled": $([ "$SKIP_CHROME" = true ] && echo "false" || echo "true"),
+    "attempt": $CHROME_ATTEMPT,
+    "max_attempts": $MAX_CHROME_FIX_ATTEMPTS
+  },
+  "pid": "$(json_escape "$(cat "$PID_FILE" 2>/dev/null || true)")",
+  "updated_at": "$(json_escape "$updated_at")"
+}
+EOF
+}
+
+emit_event() {
+    local type="$1"
+    local message="${2:-}"
+    local ts
+    ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+    printf '{"ts":"%s","type":"%s","message":"%s"}\n' \
+        "$(json_escape "$ts")" \
+        "$(json_escape "$type")" \
+        "$(json_escape "$message")" >> "$EVENTS_FILE"
 }
 
 # ======================== CODEBASE CONTEXT ========================
@@ -476,10 +558,16 @@ increment_iteration() {
     if [ "$ITERATIONS" -ge "$MAX_ITERATIONS" ]; then
         log_error "Max iterations ($MAX_ITERATIONS). Stopping."
         summary "STOPPED: iteration limit"
+        RUN_STATUS="stopped"
+        RUN_PHASE="stopped"
+        LAST_ERROR="iteration limit"
+        write_state
+        emit_event "stopped" "iteration limit"
         exit 1
     fi
     ITERATIONS=$((ITERATIONS + 1))
     echo "$ITERATIONS" > "$ITERATION_STATE_FILE"
+    write_state
 }
 
 # ======================== VALIDATION ========================
@@ -929,6 +1017,10 @@ EOF
 # ======================== PRE-FLIGHT ========================
 preflight() {
     log_phase "Pre-Flight Checks"
+    RUN_STATUS="starting"
+    RUN_PHASE="preflight"
+    LAST_ERROR=""
+    write_state
 
     for cmd in claude pnpm npx curl gh git python3 node; do
         if ! command -v "$cmd" &> /dev/null; then
@@ -970,6 +1062,9 @@ preflight() {
 
     log "Steps in range: ${BOLD}$total_steps${NC} (${FILTER_FROM}-${FILTER_TO})"
     log "Already done: ${BOLD}$already_done${NC} | Remaining: ${BOLD}$remaining${NC}"
+    TASK_TOTAL="$total_steps"
+    TASK_INDEX="$FILTER_FROM"
+    write_state
 
     local est_minutes=$(( remaining * 15 ))
     local est_hours=$(( est_minutes / 60 ))
@@ -1011,6 +1106,12 @@ main() {
 
     echo "0" > "$ITERATION_STATE_FILE"
     START_TIME=$(date +%s)
+    ITERATIONS=0
+    RUN_STATUS="running"
+    RUN_PHASE="loop"
+    LAST_ERROR=""
+    write_state
+    emit_event "run_start" "nightshift bulletproof started"
 
     log_phase "Nightshift Bulletproof Loop — Steps $FILTER_FROM to $FILTER_TO"
     log "Config: max ${BOLD}$MAX_ITERATIONS${NC} iters | ${BOLD}$MAX_FIX_ATTEMPTS${NC} code fixes | ${BOLD}$MAX_CHROME_FIX_ATTEMPTS${NC} chrome fixes"
@@ -1045,6 +1146,15 @@ main() {
         safe_title=$(echo "$step_title" | tr ' :/' '-' | tr '[:upper:]' '[:lower:]' | head -c 50)
         local step_log="$LOG_DIR/step-${step_num}-${safe_title}.log"
         local chrome_log="$LOG_DIR/chrome-step-${step_num}.log"
+        TASK_INDEX="$step_num"
+        TASK_TOTAL="$FILTER_TO"
+        TASK_NAME="$step_title"
+        RUN_PHASE="implement"
+        VALIDATION_ATTEMPT=0
+        CHROME_ATTEMPT=0
+        LAST_ERROR=""
+        write_state
+        emit_event "step_start" "Step $step_num: $step_title"
 
         log_step "$step_num" "$step_title"
         log "Category: ${BOLD}$category_name${NC}"
@@ -1086,11 +1196,18 @@ $step_body
         # ══════════ PHASE 2: CODE VALIDATION ══════════
         log ""; log "${MAGENTA}Phase 2: Code Validation${NC}"
         local validation_log="$LOG_DIR/validation-step-${step_num}-attempt-0.log"
+        RUN_PHASE="validate"
+        VALIDATION_ATTEMPT=0
+        LAST_ERROR=""
+        write_state
+        emit_event "validate_start" "Step $step_num: $step_title"
 
         CODE_PASSED=false
         if run_full_validation "$validation_log"; then
             log_success "Code passed first try!"
             summary "  CODE VALIDATED: First attempt"
+            VALIDATION_ATTEMPT=0
+            write_state
             CODE_PASSED=true
         else
             local fix_attempt=0
@@ -1098,6 +1215,9 @@ $step_body
                 fix_attempt=$((fix_attempt + 1))
                 increment_iteration
                 log_warn "Code fix $fix_attempt/$MAX_FIX_ATTEMPTS..."
+                VALIDATION_ATTEMPT=$fix_attempt
+                LAST_ERROR="validation failed (attempt $fix_attempt)"
+                write_state
 
                 call_claude "Fix validation errors for Step $step_num: **$step_title**.
 
@@ -1118,12 +1238,17 @@ No @ts-ignore, no \`any\`, no eslint-disable." "$step_log"
                 if run_full_validation "$validation_log"; then
                     log_success "Code passed on fix $fix_attempt!"
                     summary "  CODE VALIDATED: Fix attempt $fix_attempt"
+                    LAST_ERROR=""
+                    write_state
                     CODE_PASSED=true; break
                 fi
                 sleep 3
             done
 
             if ! $CODE_PASSED; then
+                LAST_ERROR="validation failed after $MAX_FIX_ATTEMPTS attempts"
+                write_state
+                emit_event "validate_failed" "Step $step_num: $step_title"
                 log_error "Step $step_num FAILED after $MAX_FIX_ATTEMPTS fix attempts."
                 summary "  FAILED: Step $step_num — $step_title"
                 mark_step_progress "$step_num" "failed"
@@ -1138,6 +1263,11 @@ No @ts-ignore, no \`any\`, no eslint-disable." "$step_log"
         if ! $SKIP_CHROME; then
             log ""; log "${WHITE}Phase 3: Chrome Testing${NC}"
             summary "  CHROME: Starting"
+            RUN_PHASE="chrome"
+            CHROME_ATTEMPT=0
+            LAST_ERROR=""
+            write_state
+            emit_event "chrome_start" "Step $step_num: $step_title"
 
             # Ensure dev server is up
             if ! curl -s -o /dev/null "$DEV_URL" 2>/dev/null; then
@@ -1149,6 +1279,7 @@ No @ts-ignore, no \`any\`, no eslint-disable." "$step_log"
 
             while [ "$CHROME_ATTEMPT" -le "$MAX_CHROME_FIX_ATTEMPTS" ]; do
                 increment_iteration
+                write_state
 
                 if [ "$CHROME_ATTEMPT" -eq 0 ]; then
                     call_claude "QA test Step $step_num in Chrome. Dev server at $DEV_URL.
@@ -1206,11 +1337,15 @@ Output CHROME_VERDICT: PASS or CHROME_VERDICT: FAIL with issues." "$chrome_log"
                 if grep -q "CHROME_VERDICT: PASS" "$chrome_log" 2>/dev/null; then
                     log_success "Chrome PASSED!"
                     summary "  CHROME VERIFIED"
+                    LAST_ERROR=""
+                    write_state
                     CHROME_PASSED=true; break
                 fi
 
                 [ "$CHROME_ATTEMPT" -ge "$MAX_CHROME_FIX_ATTEMPTS" ] && break
                 CHROME_ATTEMPT=$((CHROME_ATTEMPT + 1))
+                LAST_ERROR="chrome failed (attempt $CHROME_ATTEMPT)"
+                write_state
                 sleep 3
             done
         else
@@ -1219,15 +1354,19 @@ Output CHROME_VERDICT: PASS or CHROME_VERDICT: FAIL with issues." "$chrome_log"
 
         # ══════════ PHASE 4: COMMIT ══════════
         log ""; log "${MAGENTA}Phase 4: Commit${NC}"
+        RUN_PHASE="commit"
+        write_state
 
         if $CHROME_PASSED; then
             mark_step_progress "$step_num" "completed"
             commit_step "$step_num" "$step_title" "pass" "$category_name"
             summary "  COMPLETED: Step $step_num — $step_title"
+            emit_event "step_complete" "Step $step_num: $step_title"
         else
             mark_step_progress "$step_num" "chrome_review"
             commit_step "$step_num" "$step_title" "chrome-review" "$category_name"
             summary "  CHROME_REVIEW: Step $step_num — $step_title"
+            emit_event "step_complete" "Step $step_num: $step_title (chrome review)"
         fi
 
         TASKS_COMPLETED=$((TASKS_COMPLETED + 1))
@@ -1243,6 +1382,11 @@ Output CHROME_VERDICT: PASS or CHROME_VERDICT: FAIL with issues." "$chrome_log"
     local elapsed=$(( $(date +%s) - START_TIME ))
     log_phase "ALL STEPS PROCESSED — $TASKS_COMPLETED done, $TASKS_FAILED failed in $(( elapsed / 60 ))min"
     summary "═══ STEPS COMPLETE ═══ $TASKS_COMPLETED done, $TASKS_FAILED failed, $(( elapsed / 60 ))min"
+    RUN_PHASE="pr"
+    RUN_STATUS="running"
+    TASK_INDEX="$FILTER_TO"
+    write_state
+    emit_event "steps_complete" "all steps processed"
 
     # Final push
     git push origin "$NIGHTSHIFT_BRANCH" 2>/dev/null || true
@@ -1290,6 +1434,12 @@ Output CHROME_VERDICT: PASS or CHROME_VERDICT: FAIL with issues." "$chrome_log"
     echo -e "  ${CYAN}Progress:${NC}      $PROGRESS_FILE"
     echo -e "  ${CYAN}Screenshots:${NC}   $SCREENSHOT_DIR/"
     echo ""
+
+    RUN_STATUS="completed"
+    RUN_PHASE="done"
+    LAST_ERROR=""
+    write_state
+    emit_event "run_complete" "nightshift bulletproof finished"
 }
 
 # ======================== RUN ========================

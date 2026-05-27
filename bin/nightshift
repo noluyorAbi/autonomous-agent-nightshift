@@ -218,6 +218,14 @@ cmd_tail() {
     ./start-nightshift.sh tail
 }
 
+cmd_ui() {
+    if [ -x "$SCRIPTS/nightshift-ui.sh" ]; then
+        "$SCRIPTS/nightshift-ui.sh"
+    else
+        die "missing UI script at $SCRIPTS/nightshift-ui.sh"
+    fi
+}
+
 cmd_review() {
     local summary=".agent-logs/nightshift-summary.log"
     [ -f "$summary" ] || die "no $summary found. Has the run completed?"
@@ -308,6 +316,7 @@ ${BOLD}COMMANDS${NC}
   ${GREEN}stop${NC}                     Halt the running nightshift
   ${GREEN}status${NC}                   Is it alive? What task?
   ${GREEN}tail${NC}                     Follow the summary log
+  ${GREEN}ui${NC}                       Interactive TUI (tasks, logs, status)
   ${GREEN}review${NC}                   Morning report: summary, REVIEW flags, diff
   ${GREEN}resume${NC}                   Diagnose + restart after a stop
   ${GREEN}help${NC} [cmd]               Show this help
@@ -375,6 +384,7 @@ main() {
         stop)              cmd_stop "$@" ;;
         status)            cmd_status "$@" ;;
         tail)              cmd_tail "$@" ;;
+        ui)                cmd_ui "$@" ;;
         review)            cmd_review "$@" ;;
         resume)            cmd_resume "$@" ;;
         update|self-update) cmd_update ;;

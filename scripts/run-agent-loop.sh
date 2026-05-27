@@ -30,6 +30,9 @@ ITERATION_STATE_FILE=".claude_iterations"
 LOG_DIR=".agent-logs"
 SCREENSHOT_DIR=".agent-logs/screenshots"
 SUMMARY_LOG="$LOG_DIR/nightshift-summary.log"
+STATE_FILE="$LOG_DIR/run_state.json"
+EVENTS_FILE="$LOG_DIR/run_events.jsonl"
+PID_FILE="$LOG_DIR/runner.pid"
 
 # --- Git ---
 BASE_BRANCH="main"
@@ -48,6 +51,18 @@ MAX_CHROME_FIX_ATTEMPTS=3
 COOLDOWN_SECONDS=5              # Between tasks (auto-increases on rate limits)
 COOLDOWN_MAX=120                # Max cooldown cap
 DEV_SERVER_WAIT=15
+COST_PER_ITERATION_USD="${COST_PER_ITERATION_USD:-0}"
+
+# --- Runtime state (for UI) ---
+RUN_STATUS="starting"
+RUN_PHASE="preflight"
+TASK_INDEX=0
+TASK_TOTAL=0
+TASK_NAME=""
+LAST_ERROR=""
+VALIDATION_ATTEMPT=0
+CHROME_ATTEMPT=0
+ITERATIONS=0
 
 # ======================== COLORS ========================
 RED='\033[0;31m'
@@ -72,6 +87,73 @@ log_phase() {
 }
 summary() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$SUMMARY_LOG"
+}
+
+# ======================== STATE + EVENTS ========================
+json_escape() {
+    local s="${1:-}"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
+calc_cost() {
+    if [ "${COST_PER_ITERATION_USD}" = "0" ]; then
+        echo ""
+        return 0
+    fi
+    awk -v iters="${ITERATIONS}" -v cost="${COST_PER_ITERATION_USD}" 'BEGIN { printf "%.2f", iters * cost }'
+}
+
+write_state() {
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    local updated_at cost
+    updated_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+    cost=$(calc_cost)
+
+    cat > "$STATE_FILE" <<EOF
+{
+  "version": 1,
+  "runner": "classic",
+  "status": "$(json_escape "$RUN_STATUS")",
+  "phase": "$(json_escape "$RUN_PHASE")",
+  "cwd": "$(json_escape "$(pwd)")",
+  "todo_file": "$(json_escape "$TODO_FILE")",
+  "summary_log": "$(json_escape "$SUMMARY_LOG")",
+  "task_index": $TASK_INDEX,
+  "task_total": $TASK_TOTAL,
+  "task_name": "$(json_escape "$TASK_NAME")",
+  "iteration": $ITERATIONS,
+  "max_iterations": $MAX_ITERATIONS,
+  "cost_usd_estimate": "$(json_escape "$cost")",
+  "validation": {
+    "attempt": $VALIDATION_ATTEMPT,
+    "max_attempts": $MAX_FIX_ATTEMPTS,
+    "last_error": "$(json_escape "$LAST_ERROR")"
+  },
+  "chrome": {
+    "enabled": true,
+    "attempt": $CHROME_ATTEMPT,
+    "max_attempts": $MAX_CHROME_FIX_ATTEMPTS
+  },
+  "pid": "$(json_escape "$(cat "$PID_FILE" 2>/dev/null || true)")",
+  "updated_at": "$(json_escape "$updated_at")"
+}
+EOF
+}
+
+emit_event() {
+    local type="$1"
+    local message="${2:-}"
+    local ts
+    ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+    printf '{"ts":"%s","type":"%s","message":"%s"}\n' \
+        "$(json_escape "$ts")" \
+        "$(json_escape "$type")" \
+        "$(json_escape "$message")" >> "$EVENTS_FILE"
 }
 
 # ======================== CODEBASE CONTEXT ========================
@@ -179,6 +261,10 @@ trap cleanup EXIT
 # ======================== PRE-FLIGHT ========================
 preflight() {
     log_phase "Pre-Flight Checks"
+    RUN_STATUS="starting"
+    RUN_PHASE="preflight"
+    LAST_ERROR=""
+    write_state
 
     for cmd in claude bun npx pnpm curl gh git; do
         if ! command -v "$cmd" &> /dev/null; then
@@ -206,6 +292,9 @@ preflight() {
     REMAINING=$(grep -c "\- \[ \]" "$TODO_FILE" || echo "0")
     COMPLETED=$(grep -c "\- \[x\]" "$TODO_FILE" || echo "0")
     log "Tasks: ${BOLD}$COMPLETED done${NC}, ${BOLD}$REMAINING remaining${NC}"
+    TASK_TOTAL=$((COMPLETED + REMAINING))
+    TASK_INDEX=$((COMPLETED + 1))
+    write_state
 
     EST_MINUTES=$(( REMAINING * 12 ))
     log "Estimated: ~${EST_MINUTES} min (${REMAINING} tasks × ~12 min)"
@@ -495,10 +584,16 @@ increment_iteration() {
     if [ "$ITERATIONS" -ge "$MAX_ITERATIONS" ]; then
         log_error "Max iterations ($MAX_ITERATIONS). Stopping."
         summary "STOPPED: iteration limit"
+        RUN_STATUS="stopped"
+        RUN_PHASE="stopped"
+        LAST_ERROR="iteration limit"
+        write_state
+        emit_event "stopped" "iteration limit"
         exit 1
     fi
     ITERATIONS=$((ITERATIONS + 1))
     echo "$ITERATIONS" > "$ITERATION_STATE_FILE"
+    write_state
 }
 
 # ======================== PR CREATION ========================
@@ -820,6 +915,12 @@ main() {
 
     echo "0" > "$ITERATION_STATE_FILE"
     START_TIME=$(date +%s)
+    ITERATIONS=0
+    RUN_STATUS="running"
+    RUN_PHASE="loop"
+    LAST_ERROR=""
+    write_state
+    emit_event "run_start" "nightshift loop started"
 
     log_phase "Nightshift Loop — $NIGHTSHIFT_BRANCH"
     log "Config: ${BOLD}$MAX_ITERATIONS${NC} iters | ${BOLD}$MAX_FIX_ATTEMPTS${NC} code fixes | ${BOLD}$MAX_CHROME_FIX_ATTEMPTS${NC} chrome fixes"
@@ -847,6 +948,14 @@ main() {
         REMAINING=$(grep -c "\- \[ \]" "$TODO_FILE" || echo "0")
         COMPLETED=$(grep -c "\- \[x\]" "$TODO_FILE" || echo "0")
         ELAPSED=$(( $(date +%s) - START_TIME ))
+        TASK_INDEX=$((COMPLETED + 1))
+        TASK_TOTAL=$((COMPLETED + REMAINING))
+        RUN_PHASE="implement"
+        VALIDATION_ATTEMPT=0
+        CHROME_ATTEMPT=0
+        LAST_ERROR=""
+        write_state
+        emit_event "task_start" "Task $TASK_NUM: $TASK_NAME"
 
         log_phase "Task $TASK_NUM: $TASK_NAME  [Iter $ITERATIONS/$MAX_ITERATIONS]"
         log "Progress: ${GREEN}$COMPLETED done${NC} / ${YELLOW}$REMAINING left${NC} | ${ELAPSED}s elapsed"
@@ -881,11 +990,18 @@ $CURRENT_TASK
         # ══════════ PHASE 2: CODE VALIDATION ══════════
         log ""; log "${MAGENTA}Phase 2: Code Validation${NC}"
         VALIDATION_LOG="$LOG_DIR/validation-task-${TASK_NUM}-attempt-0.log"
+        RUN_PHASE="validate"
+        VALIDATION_ATTEMPT=0
+        LAST_ERROR=""
+        write_state
+        emit_event "validate_start" "Task $TASK_NUM: $TASK_NAME"
 
         CODE_PASSED=false
         if run_full_validation "$VALIDATION_LOG"; then
             log_success "Code passed first try!"
             summary "  CODE VALIDATED: First attempt"
+            VALIDATION_ATTEMPT=0
+            write_state
             CODE_PASSED=true
         else
             FIX_ATTEMPT=0
@@ -893,6 +1009,9 @@ $CURRENT_TASK
                 FIX_ATTEMPT=$((FIX_ATTEMPT + 1))
                 increment_iteration
                 log_warn "Code fix $FIX_ATTEMPT/$MAX_FIX_ATTEMPTS..."
+                VALIDATION_ATTEMPT=$FIX_ATTEMPT
+                LAST_ERROR="validation failed (attempt $FIX_ATTEMPT)"
+                write_state
 
                 call_claude "Fix validation errors. Task: **$TASK_NAME**.
 
@@ -912,12 +1031,17 @@ Fix ALL errors. Run bun test + tsc + eslint + prettier. No @ts-ignore/any." "$TA
                 if run_full_validation "$VALIDATION_LOG"; then
                     log_success "Code passed on fix $FIX_ATTEMPT!"
                     summary "  CODE VALIDATED: Fix attempt $FIX_ATTEMPT"
+                    LAST_ERROR=""
+                    write_state
                     CODE_PASSED=true; break
                 fi
                 sleep 3
             done
 
             if ! $CODE_PASSED; then
+                LAST_ERROR="validation failed after $MAX_FIX_ATTEMPTS attempts"
+                write_state
+                emit_event "validate_failed" "Task $TASK_NUM: $TASK_NAME"
                 summary "  FAILED (code): $TASK_NAME"
                 TASKS_FAILED=$((TASKS_FAILED + 1))
                 call_claude "In \`$TODO_FILE\`, find:
@@ -933,6 +1057,11 @@ Change \`- [ ]\` to \`- [x]\` and append \` — NEEDS MANUAL REVIEW\`. Change no
         # ══════════ PHASE 3: CHROME TESTING ══════════
         log ""; log "${WHITE}Phase 3: Chrome Testing${NC}"
         summary "  CHROME: Starting"
+        RUN_PHASE="chrome"
+        CHROME_ATTEMPT=0
+        LAST_ERROR=""
+        write_state
+        emit_event "chrome_start" "Task $TASK_NUM: $TASK_NAME"
 
         if ! curl -s -o /dev/null "$DEV_URL" 2>/dev/null; then
             stop_dev_server; start_dev_server; sleep 3
@@ -943,6 +1072,7 @@ Change \`- [ ]\` to \`- [x]\` and append \` — NEEDS MANUAL REVIEW\`. Change no
 
         while [ "$CHROME_ATTEMPT" -le "$MAX_CHROME_FIX_ATTEMPTS" ]; do
             increment_iteration
+            write_state
 
             if [ "$CHROME_ATTEMPT" -eq 0 ]; then
                 call_claude "QA test this feature in Chrome. Dev server at $DEV_URL.
@@ -997,16 +1127,22 @@ Output CHROME_VERDICT: PASS or CHROME_VERDICT: FAIL with issues." "$CHROME_LOG"
             if grep -q "CHROME_VERDICT: PASS" "$CHROME_LOG" 2>/dev/null; then
                 log_success "Chrome PASSED!"
                 summary "  CHROME VERIFIED"
+                LAST_ERROR=""
+                write_state
                 CHROME_PASSED=true; break
             fi
 
             [ "$CHROME_ATTEMPT" -ge "$MAX_CHROME_FIX_ATTEMPTS" ] && break
             CHROME_ATTEMPT=$((CHROME_ATTEMPT + 1))
+            LAST_ERROR="chrome failed (attempt $CHROME_ATTEMPT)"
+            write_state
             sleep 3
         done
 
         # ══════════ PHASE 4: MARK + COMMIT ══════════
         log ""; log "${MAGENTA}Phase 4: Mark Complete + Commit${NC}"
+        RUN_PHASE="commit"
+        write_state
 
         if $CHROME_PASSED; then
             call_claude "In \`$TODO_FILE\`, change this checkbox from \`- [ ]\` to \`- [x]\`:
@@ -1016,6 +1152,7 @@ $(echo "$CURRENT_TASK" | head -1)
 Change nothing else." "$TASK_LOG"
             commit_task "$TASK_NUM" "$TASK_NAME" "pass"
             summary "  COMPLETED: Task $TASK_NUM — $TASK_NAME"
+            emit_event "task_complete" "Task $TASK_NUM: $TASK_NAME"
         else
             call_claude "In \`$TODO_FILE\`, change this to \`- [x]\` and append \` — CHROME REVIEW NEEDED\`:
 \`\`\`
@@ -1023,6 +1160,7 @@ $(echo "$CURRENT_TASK" | head -1)
 \`\`\`" "$TASK_LOG"
             commit_task "$TASK_NUM" "$TASK_NAME" "chrome-review"
             summary "  COMPLETED*: Task $TASK_NUM — $TASK_NAME (Chrome review)"
+            emit_event "task_complete" "Task $TASK_NUM: $TASK_NAME (chrome review)"
         fi
 
         TASKS_COMPLETED=$((TASKS_COMPLETED + 1))
@@ -1038,6 +1176,11 @@ $(echo "$CURRENT_TASK" | head -1)
     ELAPSED=$(( $(date +%s) - START_TIME ))
     log_phase "ALL TASKS PROCESSED — $TASKS_COMPLETED done, $TASKS_FAILED failed in $(( ELAPSED / 60 ))min"
     summary "═══ TASKS COMPLETE ═══ $TASKS_COMPLETED done, $TASKS_FAILED failed, $(( ELAPSED / 60 ))min"
+    RUN_PHASE="pr"
+    RUN_STATUS="running"
+    TASK_INDEX=$TASK_TOTAL
+    write_state
+    emit_event "tasks_complete" "all tasks processed"
 
     # Final push
     git push origin "$NIGHTSHIFT_BRANCH" 2>/dev/null || true
@@ -1062,6 +1205,12 @@ $(echo "$CURRENT_TASK" | head -1)
         log_warn "PR creation failed. Changes are on branch $NIGHTSHIFT_BRANCH."
         summary "═══ NIGHTSHIFT FINISHED (no PR) ═══"
     fi
+
+    RUN_STATUS="completed"
+    RUN_PHASE="done"
+    LAST_ERROR=""
+    write_state
+    emit_event "run_complete" "nightshift finished"
 }
 
 # ======================== RUN ========================
