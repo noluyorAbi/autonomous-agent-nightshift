@@ -1,0 +1,53 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify package.json version matches tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG_VERSION="${REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "FAIL: tag $TAG_VERSION != package.json $PKG_VERSION"
+            exit 1
+          fi
+          echo "OK: $TAG_VERSION"
+
+      - name: Validate package layout
+        run: |
+          OUTPUT=$(npm pack --dry-run 2>&1)
+          echo "$OUTPUT" | grep -q "bin/nightshift" || { echo "FAIL: bin/nightshift missing"; exit 1; }
+          echo "$OUTPUT" | grep -q "SKILL.md" || { echo "FAIL: SKILL.md missing"; exit 1; }
+          if echo "$OUTPUT" | grep -q "site/node_modules"; then echo "FAIL: site/node_modules leaked"; exit 1; fi
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::warning::NPM_TOKEN secret not set — skipping publish."
+            echo "Add a granular access token at npmjs.com/settings/noluyorabi/tokens"
+            echo "with 'Bypass 2FA when publishing' enabled, then store as NPM_TOKEN secret."
+            exit 0
+          fi
+          npm publish --access public --provenance
