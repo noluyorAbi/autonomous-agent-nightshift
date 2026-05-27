@@ -34,7 +34,8 @@ docs/
   05-failure-modes.md       Cheatsheet of seen failures
   06-test-loop.md           Recursive validation loop
 examples/
-  todo-design-nightshift.md   Real 50-task design overhaul (sanitized)
+  todo-simple-example.md      Synthetic 5-task dark-mode toggle (start here)
+  bulletproof-steps-example.md Synthetic 10-step production hardening sweep
   qa-checklist-saas.md        Real 22-section SaaS checklist (sanitized)
   bulletproof-summary.log     Real 100-step run timeline (sanitized)
 ```

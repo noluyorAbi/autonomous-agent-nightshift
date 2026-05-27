@@ -94,7 +94,7 @@ Legend: `[ ]` pending · `[x]` verified · `[!]` bug found · `[~]` known-skip w
 
 ## 8. Interview session (`/dashboard/interview/start` → question flow)
 
-- [ ] Intro view greets user, references "competencies and values in the job description" (NOT BMW / generic values)
+- [ ] Intro view greets user, references "competencies and values in the job description" (NOT a hardcoded company name / generic boilerplate values)
 - [ ] AI questions are JD-specific (no generic STAR fabrication when JD supplies content)
 - [ ] Voice recording: start / stop / replay works
 - [ ] Transcription returns text (Gemini `transcribe` action)

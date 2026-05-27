@@ -4,6 +4,38 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-05-27
+
+### Removed (sanitization for public release)
+
+- `examples/todo-design-nightshift.md` — too project-specific to sanitize cleanly (real soccer-club client identifiers: location, founding year, address coordinates, named characters from the wordmark). Synthetic `todo-simple-example.md` + `bulletproof-steps-example.md` cover the example need without the leakage risk.
+
+### Fixed (final pre-public sanitization sweep)
+
+- `examples/qa-checklist-saas.md` — replaced "BMW" reference with generic "hardcoded company name" phrasing.
+- `examples/bulletproof-summary.log` — replaced `noluyorAbi/bmw-fastlane-ai-coach` repo URL (×3) with `owner/repo`, replaced `road-to-saas` branch name (×4) with `staging`.
+- `examples/README.md` — restructured to drop deleted entry; softened intro line.
+
+### Changed
+
+- README `/plugin install` block now correctly shows `marketplace add` step (custom marketplace flow). Previous single-line `/plugin install` claim implied first-party marketplace presence that didn't exist.
+- README badges: replaced dead "Claude Code Skill" badge URL with working docs link, added CI status badge, added release-version badge.
+- `SKILL.md` examples list updated for the deleted file.
+
+### Verified
+
+- `install.sh` end-to-end logic via local `file://` clone test: fresh clone → re-pull idempotent → SKILL.md frontmatter loads → all 6 slash commands present. Real network test happens post-public-flip.
+
+### Repo now public
+
+Visibility flipped from private to public after this release was prepared. Install command becomes functional for everyone:
+
+```
+curl -fsSL https://raw.githubusercontent.com/noluyorAbi/autonomous-agent-nightshift/main/bin/install.sh | bash
+```
+
+## [1.2.0] — 2026-05-27
+
 ## [1.2.0] — 2026-05-27
 
 ### Fixed (real bugs found via self-audit)

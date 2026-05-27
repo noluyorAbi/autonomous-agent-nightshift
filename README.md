@@ -4,8 +4,9 @@
 > Write a todo file with checkboxes. Hit launch. Wake up to validated code (or a PR with review feedback already addressed).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange)](https://docs.claude.com/en/docs/claude-code)
-[![Bash](https://img.shields.io/badge/Bash-5.0+-green)](https://www.gnu.org/software/bash/)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill%20%2B%20Plugin-orange)](https://docs.claude.com/en/docs/claude-code/skills)
+[![CI](https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/lint.yml/badge.svg)](https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/lint.yml)
+[![Release](https://img.shields.io/github/v/release/noluyorAbi/autonomous-agent-nightshift)](https://github.com/noluyorAbi/autonomous-agent-nightshift/releases)
 
 Built from real production runs on multiple SaaS codebases (Next.js, Bun, Supabase, Stripe, real-estate websites, design-system overhauls). The patterns generalize — Python, Go, Rust adaptations are documented.
 
@@ -68,15 +69,16 @@ cd your-project
 git clone https://github.com/noluyorAbi/autonomous-agent-nightshift .claude/skills/autonomous-agent-nightshift
 ```
 
-### As a plugin
+### As a plugin (custom marketplace)
 
-If your Claude Code plugin marketplace is configured:
+Add this repo as a marketplace, then install:
 
-```bash
+```
+/plugin marketplace add noluyorAbi/autonomous-agent-nightshift
 /plugin install autonomous-agent-nightshift
 ```
 
-Manifest at `.claude-plugin/plugin.json` ships the skill + 4 slash commands.
+Manifest at `.claude-plugin/plugin.json` ships the skill + 6 slash commands.
 
 ### Bash-only (no Claude Code)
 
@@ -236,11 +238,10 @@ templates/
 └── runner-config.env         Tuning presets per scenario
 
 examples/
-├── todo-simple-example.md      Synthetic 5-task dark-mode toggle (start here)
+├── todo-simple-example.md       Synthetic 5-task dark-mode toggle (start here)
 ├── bulletproof-steps-example.md Synthetic 10-step production hardening sweep
-├── todo-design-nightshift.md   Real (sanitized) 50-task design overhaul
-├── qa-checklist-saas.md        Real (sanitized) 22-section SaaS checklist
-└── bulletproof-summary.log     Real (sanitized) 100-step run timeline
+├── qa-checklist-saas.md         Real (sanitized) 22-section SaaS checklist
+└── bulletproof-summary.log      Real (sanitized) 100-step run timeline
 
 .github/workflows/lint.yml    CI: shellcheck + markdownlint + plugin.json/SKILL.md validation
 CONTRIBUTING.md               How to contribute (esp. stack adapters + sanitized examples)
