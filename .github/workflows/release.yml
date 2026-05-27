@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    name: Build tarball and attach to GitHub Release
+    name: Build, validate, attach tarball to GitHub Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,17 +27,70 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p dist
-          tar --exclude='.git' --exclude='.github' --exclude='dist' --exclude='node_modules' \
+          tar --exclude='.git' --exclude='.github' --exclude='dist' \
+              --exclude='node_modules' --exclude='site/node_modules' \
+              --exclude='site/dist' \
               -czf "dist/autonomous-agent-nightshift-${VERSION}.tar.gz" .
           shasum -a 256 "dist/autonomous-agent-nightshift-${VERSION}.tar.gz" \
             > "dist/autonomous-agent-nightshift-${VERSION}.tar.gz.sha256"
 
-      - name: Create release (if missing) and upload assets
+      - name: Validate tarball contents
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          TMP=$(mktemp -d)
+          tar -xzf "dist/autonomous-agent-nightshift-${VERSION}.tar.gz" -C "$TMP"
+          # Critical files must be present
+          test -f "$TMP/SKILL.md" || { echo "FAIL: SKILL.md missing from tarball"; exit 1; }
+          test -f "$TMP/CLAUDE.md" || { echo "FAIL: CLAUDE.md missing"; exit 1; }
+          test -f "$TMP/bin/nightshift" || { echo "FAIL: bin/nightshift missing"; exit 1; }
+          test -x "$TMP/bin/nightshift" || { echo "FAIL: bin/nightshift not executable"; exit 1; }
+          test -f "$TMP/.claude-plugin/plugin.json" || { echo "FAIL: plugin.json missing"; exit 1; }
+          test -f "$TMP/.claude-plugin/marketplace.json" || { echo "FAIL: marketplace.json missing"; exit 1; }
+          test -f "$TMP/package.json" || { echo "FAIL: package.json missing"; exit 1; }
+          # CLI runs from the tarball
+          "$TMP/bin/nightshift" version
+          # Should NOT contain dev artifacts
+          if [ -d "$TMP/.git" ]; then echo "FAIL: .git/ leaked into tarball"; exit 1; fi
+          if [ -d "$TMP/node_modules" ]; then echo "FAIL: node_modules/ leaked"; exit 1; fi
+          if [ -d "$TMP/site/node_modules" ]; then echo "FAIL: site/node_modules/ leaked"; exit 1; fi
+          echo "OK: tarball validated"
+          rm -rf "$TMP"
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Extract the section between "## [VERSION]" and the next "## ["
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="$VERSION" '
+              $0 ~ "^## \\["ver"\\]" { found=1; next }
+              found && /^## \[/ { exit }
+              found { print }
+            ' CHANGELOG.md > /tmp/release_notes.md
+            if [ -s /tmp/release_notes.md ]; then
+              echo "notes_file=/tmp/release_notes.md" >> "$GITHUB_OUTPUT"
+              echo "Found notes for v$VERSION in CHANGELOG"
+            else
+              echo "No CHANGELOG section for v$VERSION; will use --generate-notes"
+              echo "notes_file=" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "notes_file=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update release, upload assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
+          NOTES_FILE: ${{ steps.notes.outputs.notes_file }}
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "$TAG" --generate-notes
+            if [ -n "$NOTES_FILE" ] && [ -f "$NOTES_FILE" ]; then
+              gh release create "$TAG" --title "$TAG" --notes-file "$NOTES_FILE"
+            else
+              gh release create "$TAG" --title "$TAG" --generate-notes
+            fi
           fi
           gh release upload "$TAG" dist/* --clobber

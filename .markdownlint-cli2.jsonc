@@ -1,0 +1,24 @@
+{
+  // Markdownlint config — see https://github.com/DavidAnson/markdownlint
+  "config": {
+    "default": true,
+    // Line length: docs are prose-heavy, no hard wrap
+    "MD013": false,
+    // Allow multiple H1s (some docs do this for sections)
+    "MD025": false,
+    // Allow trailing punctuation in headings ("Cost & safety")
+    "MD026": false,
+    // Allow inline HTML (we use <details>, <table>, <kbd>, etc. in README)
+    "MD033": false,
+    // Allow bare URLs (less noise in cost/install docs)
+    "MD034": false,
+    // Allow code blocks without language (some are intentional)
+    "MD040": false,
+    // First line doesn't need to be top-level heading
+    "MD041": false,
+    // Allow duplicate headings (table-of-contents-friendly)
+    "MD024": { "siblings_only": true }
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules", "site/node_modules", "site/dist", "examples"]
+}

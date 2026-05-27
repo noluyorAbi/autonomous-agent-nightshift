@@ -8,10 +8,15 @@
 </p>
 
 <p>
+  <a href="https://www.npmjs.com/package/autonomous-agent-nightshift"><img alt="npm" src="https://img.shields.io/npm/v/autonomous-agent-nightshift?color=f59e0b&label=npm"></a>
+  <a href="https://github.com/noluyorAbi/autonomous-agent-nightshift/releases"><img alt="Release" src="https://img.shields.io/github/v/release/noluyorAbi/autonomous-agent-nightshift"></a>
   <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
   <a href="https://docs.claude.com/en/docs/claude-code/skills"><img alt="Claude Code Skill + Plugin" src="https://img.shields.io/badge/Claude%20Code-Skill%20%2B%20Plugin-orange"></a>
-  <a href="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/lint.yml"><img alt="CI" src="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/lint.yml/badge.svg"></a>
-  <a href="https://github.com/noluyorAbi/autonomous-agent-nightshift/releases"><img alt="Release" src="https://img.shields.io/github/v/release/noluyorAbi/autonomous-agent-nightshift"></a>
+</p>
+<p>
+  <a href="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/lint.yml"><img alt="Lint CI" src="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/lint.yml/badge.svg"></a>
+  <a href="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/deploy-site.yml"><img alt="Site deploy" src="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/deploy-site.yml/badge.svg"></a>
+  <a href="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/noluyorAbi/autonomous-agent-nightshift/actions/workflows/codeql.yml/badge.svg"></a>
 </p>
 
 <sub>Distilled from production runs on multiple SaaS codebases (Next.js, Bun, Supabase, Stripe). Adapters documented for Python, Go, Rust.</sub>

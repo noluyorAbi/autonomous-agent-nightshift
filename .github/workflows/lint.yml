@@ -11,14 +11,21 @@ permissions:
 
 jobs:
   shellcheck:
-    name: ShellCheck
+    name: ShellCheck (scripts + bin)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run shellcheck on scripts
-        uses: ludeeus/action-shellcheck@master
+
+      - name: ShellCheck scripts/
+        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca
         with:
           scandir: ./scripts
+          severity: warning
+
+      - name: ShellCheck bin/
+        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca
+        with:
+          scandir: ./bin
           severity: warning
 
   markdownlint:
@@ -26,38 +33,135 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Run markdownlint
         run: |
           npm install -g markdownlint-cli2
-          markdownlint-cli2 "**/*.md" "#node_modules" "#examples" || true
+          # examples/ contains real artifacts that follow their own formatting.
+          # site/node_modules excluded as build artifact.
+          markdownlint-cli2 \
+            --config .markdownlint-cli2.jsonc \
+            "**/*.md" \
+            "#node_modules" \
+            "#site/node_modules" \
+            "#site/dist" \
+            "#examples"
 
-  validate-plugin-json:
-    name: Validate plugin.json
+  validate-json:
+    name: Validate JSON manifests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate JSON
+
+      - name: Validate plugin.json + marketplace.json + package.json
         run: |
-          python3 -m json.tool .claude-plugin/plugin.json > /dev/null
-          echo "plugin.json is valid JSON"
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json package.json site/package.json; do
+            if [ -f "$f" ]; then
+              python3 -m json.tool "$f" > /dev/null && echo "OK: $f"
+            else
+              echo "MISSING (skipping): $f"
+            fi
+          done
 
   validate-skill-frontmatter:
     name: Validate SKILL.md frontmatter
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check SKILL.md has name + description
+
+      - name: Check SKILL.md has name + description, length OK
         run: |
           head -10 SKILL.md | grep -q '^name:' || { echo "SKILL.md missing name field"; exit 1; }
           head -10 SKILL.md | grep -q '^description:' || { echo "SKILL.md missing description field"; exit 1; }
           desc_len=$(grep '^description:' SKILL.md | head -1 | wc -c)
-          # Anthropic-distributed skills range 150-1000 chars (NOT-for clauses add length).
-          # Cap at 1000 to catch true runaway descriptions while allowing rich trigger lists.
+          # Anthropic-distributed skills range 150-1000 chars.
           if [ "$desc_len" -gt 1000 ]; then
             echo "SKILL.md description is $desc_len chars (recommend <1000)"
             exit 1
           fi
-          echo "SKILL.md frontmatter OK"
+          if [ "$desc_len" -lt 100 ]; then
+            echo "SKILL.md description is only $desc_len chars (recommend >150 for good triggering)"
+            exit 1
+          fi
+          echo "SKILL.md frontmatter OK ($desc_len chars)"
+
+  cli-smoke-test:
+    name: CLI smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: nightshift version + help
+        run: |
+          chmod +x bin/nightshift
+          ./bin/nightshift version
+          ./bin/nightshift help | head -20
+
+      - name: nightshift init in tmp dir
+        run: |
+          REPO_ROOT=$(pwd)
+          TMP=$(mktemp -d)
+          cd "$TMP"
+          git init -q
+          "$REPO_ROOT/bin/nightshift" init smoke-test
+          # Verify files created
+          test -f "todo-$(date +%Y_%m_%d)_smoke-test.md" && echo "OK: todo file created"
+          test -x ./run-agent-loop.sh && echo "OK: run-agent-loop.sh executable"
+          test -x ./start-nightshift.sh && echo "OK: start-nightshift.sh executable"
+          # Verify TODO_FILE was substituted
+          grep -q "todo-.*_smoke-test.md" run-agent-loop.sh && echo "OK: TODO_FILE substituted"
+          cd / && rm -rf "$TMP"
+
+  npm-pack-validation:
+    name: npm pack dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate npm package layout
+        run: |
+          OUTPUT=$(npm pack --dry-run 2>&1)
+          echo "$OUTPUT"
+          # Critical files must be present
+          echo "$OUTPUT" | grep -q "bin/nightshift" || { echo "FAIL: bin/nightshift missing from npm payload"; exit 1; }
+          echo "$OUTPUT" | grep -q "SKILL.md" || { echo "FAIL: SKILL.md missing"; exit 1; }
+          echo "$OUTPUT" | grep -q "scripts/run-agent-loop.sh" || { echo "FAIL: scripts/run-agent-loop.sh missing"; exit 1; }
+          echo "$OUTPUT" | grep -q "commands/nightshift-setup.md" || { echo "FAIL: commands/ missing"; exit 1; }
+          # Files that should NOT be in payload
+          if echo "$OUTPUT" | grep -q "site/node_modules"; then echo "FAIL: site/node_modules leaked"; exit 1; fi
+          if echo "$OUTPUT" | grep -q ".github/"; then echo "FAIL: .github/ leaked"; exit 1; fi
+          echo "OK: npm package layout valid"
+
+  site-build:
+    name: Site build (Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install site dependencies
+        working-directory: site
+        run: npm ci
+
+      - name: Build site
+        working-directory: site
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f site/dist/index.html || { echo "FAIL: site/dist/index.html missing"; exit 1; }
+          test -d site/dist/assets || { echo "FAIL: site/dist/assets/ missing"; exit 1; }
+          echo "OK: site build artifact valid"
