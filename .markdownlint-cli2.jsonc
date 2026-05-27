@@ -1,23 +1,31 @@
 {
-  // Markdownlint config — see https://github.com/DavidAnson/markdownlint
+  // Markdownlint config — pragmatic rules. We catch real correctness/clarity
+  // issues; we don't gate-keep pure formatting style (spacing around headings,
+  // blank lines around lists). Editors handle that.
   "config": {
     "default": true,
     // Line length: docs are prose-heavy, no hard wrap
     "MD013": false,
-    // Allow multiple H1s (some docs do this for sections)
+    // Blank lines around headings — pure style
+    "MD022": false,
+    // Duplicate headings — CHANGELOG has H2 per version under same parent
+    "MD024": false,
+    // Multiple H1s allowed
     "MD025": false,
-    // Allow trailing punctuation in headings ("Cost & safety")
+    // Trailing punctuation in headings ("Cost & safety")
     "MD026": false,
-    // Allow inline HTML (we use <details>, <table>, <kbd>, etc. in README)
+    // Blank lines around lists — pure style
+    "MD032": false,
+    // Inline HTML — README uses <details>, <table>, <kbd>, etc.
     "MD033": false,
-    // Allow bare URLs (less noise in cost/install docs)
+    // Bare URLs — less noise in install/cost docs
     "MD034": false,
-    // Allow code blocks without language (some are intentional)
+    // Code blocks without language — sometimes intentional (raw output)
     "MD040": false,
-    // First line doesn't need to be top-level heading
+    // First line doesn't need top-level heading
     "MD041": false,
-    // Allow duplicate headings (table-of-contents-friendly)
-    "MD024": { "siblings_only": true }
+    // Table column style — pipe spacing is editor-territory
+    "MD060": false
   },
   "globs": ["**/*.md"],
   "ignores": ["node_modules", "site/node_modules", "site/dist", "examples"]
