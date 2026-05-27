@@ -18,6 +18,12 @@
     "MD032": false,
     // Blank lines around fenced code blocks — pure style
     "MD031": false,
+    // Spaces in code spans — intentional in templates/todo-template.md where
+    // we document literal strings the runner appends (`` ` — NEEDS MANUAL REVIEW` ``)
+    "MD038": false,
+    // Link fragments — playbook has hand-written anchor links that work on
+    // GitHub's auto-anchor generation but trip strict validators
+    "MD051": false,
     // Inline HTML — README uses <details>, <table>, <kbd>, etc.
     "MD033": false,
     // Bare URLs — less noise in install/cost docs
