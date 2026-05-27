@@ -4,6 +4,22 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-05-28
+
+### Added — auto-update notification + self-update command
+
+- **`nightshift update`** subcommand. Detects install channel from `$ROOT` path (npm Cellar / Homebrew / `~/.claude/skills/` / `~/.claude/plugins/marketplaces/` / git clone) and runs the matching update command. Invalidates the update-check cache after running.
+- **Daily update check** runs before every subcommand except `version`, `help`, `update`. Fetches latest from npm registry with 3s timeout, caches result in `$XDG_CACHE_HOME/nightshift/latest-version` (or `~/.cache/nightshift/`). If newer version exists, prints a one-line yellow notice to stderr. Fails silent on network errors.
+- Pure-bash semver comparison (`version_lt`). No new dependencies. Skips check in non-interactive contexts (CI, pipes) via `[ -t 1 ]`. Disable via `NIGHTSHIFT_NO_UPDATE_CHECK=1`.
+
+### Fixed (real bug reported via screenshot)
+
+- **`bin/nightshift help` displayed literal `\033[1m` escape codes** instead of bold/colored text. Cause: single-quoted color variables (`BOLD='\033[1m'`) stay as literal 6-char strings; `cat <<EOF` heredoc does not interpret backslash escapes. Fix: ANSI-C quoting (`BOLD=$'\033[1m'`) so vars contain real ESC bytes that terminals interpret correctly.
+
+### Why this release
+
+Combined v1.5.1 (ANSI bug fix) with auto-update feature user requested. Bumping straight to 1.5.2 since v1.5.1 was tagged on GitHub but never published to npm.
+
 ## [1.5.1] — 2026-05-28
 
 ### Fixed (real bug reported via screenshot)

@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="1.5.1"
+VERSION="1.5.2"
 REPO_URL="https://github.com/noluyorAbi/autonomous-agent-nightshift"
 
 # ---- Locate ROOT (where scripts/, templates/, docs/ live) ----
@@ -60,6 +60,73 @@ fi
 die() { echo -e "${RED}error:${NC} $*" >&2; exit 1; }
 info() { echo -e "${CYAN}::${NC} $*"; }
 ok() { echo -e "${GREEN}ok${NC} $*"; }
+
+# ---- Update check ----
+# Checks npm registry once per 24h. Caches result. Fails silent on network errors.
+# Disable: NIGHTSHIFT_NO_UPDATE_CHECK=1
+check_for_update() {
+    [ -n "${NIGHTSHIFT_NO_UPDATE_CHECK:-}" ] && return 0
+    # Skip in non-interactive contexts (CI, pipes)
+    [ -t 1 ] || return 0
+
+    local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/nightshift"
+    local cache_file="$cache_dir/latest-version"
+    mkdir -p "$cache_dir" 2>/dev/null || return 0
+
+    # Refresh cache if missing or older than 24h
+    local age=86401
+    if [ -f "$cache_file" ]; then
+        local mtime
+        mtime=$(stat -f %m "$cache_file" 2>/dev/null || stat -c %Y "$cache_file" 2>/dev/null || echo 0)
+        age=$(( $(date +%s) - mtime ))
+    fi
+
+    if [ "$age" -gt 86400 ]; then
+        local latest
+        latest=$(curl -fsSL --max-time 3 https://registry.npmjs.org/autonomous-agent-nightshift/latest 2>/dev/null \
+            | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
+        if [ -n "$latest" ]; then
+            echo "$latest" > "$cache_file"
+        else
+            # Network failed — touch cache to avoid retrying every run
+            touch "$cache_file" 2>/dev/null || true
+            return 0
+        fi
+    fi
+
+    local latest
+    latest=$(cat "$cache_file" 2>/dev/null)
+    [ -z "$latest" ] && return 0
+
+    # Compare semver (string compare works for X.Y.Z within same major)
+    if [ "$latest" != "$VERSION" ] && version_lt "$VERSION" "$latest"; then
+        cat >&2 <<EOF
+
+${YELLOW:-}  ┌─ Update available${NC:-}
+${YELLOW:-}  │  $VERSION → $latest${NC:-}
+${YELLOW:-}  │  Run: ${BOLD:-}nightshift update${NC:-}${YELLOW:-} (or npm install -g autonomous-agent-nightshift)${NC:-}
+${YELLOW:-}  └─ Silence: NIGHTSHIFT_NO_UPDATE_CHECK=1${NC:-}
+
+EOF
+    fi
+}
+
+# Returns 0 if $1 < $2 (semver). Pure bash.
+version_lt() {
+    [ "$1" = "$2" ] && return 1
+    local left right
+    IFS='.' read -ra left <<< "$1"
+    IFS='.' read -ra right <<< "$2"
+    for i in 0 1 2; do
+        local l="${left[$i]:-0}" r="${right[$i]:-0}"
+        # Strip non-numeric suffixes (e.g., "1.0.0-rc1" -> "1.0.0")
+        l="${l%%[^0-9]*}"; r="${r%%[^0-9]*}"
+        l="${l:-0}"; r="${r:-0}"
+        if [ "$l" -lt "$r" ]; then return 0; fi
+        if [ "$l" -gt "$r" ]; then return 1; fi
+    done
+    return 1
+}
 
 # ============================================================================
 # Subcommands
@@ -188,6 +255,45 @@ cmd_version() {
     echo "Repo: $REPO_URL"
 }
 
+cmd_update() {
+    info "Detecting install channel..."
+
+    # Detect how nightshift was installed
+    local channel=""
+    case "$ROOT" in
+        */node_modules/autonomous-agent-nightshift*) channel="npm" ;;
+        */Cellar/nightshift/*|*/homebrew/*) channel="brew" ;;
+        *.claude/skills/*) channel="skill" ;;
+        *.claude/plugins/marketplaces/*) channel="plugin" ;;
+        *) channel="git" ;;
+    esac
+
+    info "Detected: $channel"
+    echo ""
+
+    case "$channel" in
+        npm)
+            info "Running: npm install -g autonomous-agent-nightshift@latest"
+            npm install -g autonomous-agent-nightshift@latest
+            ;;
+        brew)
+            info "Running: brew upgrade nightshift"
+            brew upgrade nightshift || brew install --HEAD https://raw.githubusercontent.com/noluyorAbi/autonomous-agent-nightshift/main/Formula/nightshift.rb
+            ;;
+        skill|plugin|git)
+            info "Pulling latest from git in $ROOT"
+            git -C "$ROOT" pull --ff-only
+            ;;
+        *)
+            die "Could not detect install channel. Re-install manually from: $REPO_URL"
+            ;;
+    esac
+
+    ok "Updated. Run: nightshift version"
+    # Invalidate update-check cache
+    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/nightshift/latest-version" 2>/dev/null || true
+}
+
 cmd_help() {
     cat <<EOF
 ${BOLD}nightshift${NC} $VERSION — autonomous Claude Code agent runner
@@ -206,6 +312,7 @@ ${BOLD}COMMANDS${NC}
   ${GREEN}resume${NC}                   Diagnose + restart after a stop
   ${GREEN}help${NC} [cmd]               Show this help
   ${GREEN}version${NC}                  Print version + install root
+  ${GREEN}update${NC}                   Self-update via detected install channel (npm/brew/git)
 
 ${BOLD}TYPICAL FLOW${NC}
   ${DIM}# Setup${NC}
@@ -254,6 +361,13 @@ main() {
 
     local cmd="$1"; shift || true
 
+    # Run update check for most commands (skip for version/help/update itself
+    # to avoid noise or recursion)
+    case "$cmd" in
+        version|--version|-v|help|--help|-h|""|update) ;;
+        *) check_for_update ;;
+    esac
+
     case "$cmd" in
         init)              cmd_init "$@" ;;
         bulletproof-init)  cmd_bulletproof_init "$@" ;;
@@ -263,6 +377,7 @@ main() {
         tail)              cmd_tail "$@" ;;
         review)            cmd_review "$@" ;;
         resume)            cmd_resume "$@" ;;
+        update|self-update) cmd_update ;;
         version|--version|-v) cmd_version ;;
         help|--help|-h|"") cmd_help ;;
         *)
