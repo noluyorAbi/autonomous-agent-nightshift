@@ -162,9 +162,10 @@ read_tasks() {
         if [[ "$line" =~ ^-\ \[[[:space:]xX]\]\  ]]; then
             local status title
             status="${line:3:1}"
-            title="${line#- [ ] }"
-            title="${title#- [x] }"
-            title="${title#- [X] }"
+            # Checkbox prefix "- [x] " is always exactly 6 chars. Strip by
+            # fixed offset — pattern strip with "[ ]" mis-parses as a glob
+            # character class (matches one space), not literal brackets.
+            title="${line:6}"
             title="${title//\*\*/}"
             TASK_LINES+=("$line")
             TASK_STATES+=("$status")

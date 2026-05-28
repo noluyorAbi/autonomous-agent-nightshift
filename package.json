@@ -1,6 +1,6 @@
 {
   "name": "autonomous-agent-nightshift",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Run Claude Code agents overnight on your codebase. Bash harness + Claude Code skill + slash commands. Write a todo file with Implementation+Validation pairs, launch, wake up to validated code.",
   "bin": {
     "nightshift": "./bin/nightshift"

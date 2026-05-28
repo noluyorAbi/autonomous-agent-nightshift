@@ -4,15 +4,24 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-### Added
+## [1.6.0] — 2026-05-28
 
-- `USAGE.md` — consolidated how-to-use guide with three install paths (Claude Code plugin / npm CLI / pure bash) and a comprehensive troubleshooting section. Surfaces the "must run `/plugin install` AFTER `/plugin marketplace add`" gotcha that's been the most common cause of "I installed but don't see the skill".
-- `nightshift ui` — interactive TUI showing tasks, logs, status, and validation/chrome state for active runs.
-- Runner state/events output (`.agent-logs/run_state.json` and `.agent-logs/run_events.jsonl`) to power the UI for classic and bulletproof loops.
-- `ROADMAP-UI.md` — staged plan and milestones for a Claude-Code-like TUI for the CLI.
-- README install section now links to `USAGE.md` and clarifies the `/plugin install` + full restart requirement for plugin installs.
-- `.github/workflows/npm-publish.yml` — auto-publish to npm on tag push. Requires `NPM_TOKEN` secret with "Bypass 2FA when publishing" enabled. Fails-safe (warns, doesn't fail) when secret is missing. Manual dispatch from a branch skips the tag/version check; tag pushes still enforce it.
-- Branch protection on `main` with 8 required status checks: ShellCheck, Markdownlint, JSON validation, SKILL.md frontmatter, CLI smoke test, npm pack dry-run, site build, CodeQL. No force-push, no deletion.
+### Added — interactive TUI
+
+- **`nightshift ui`** — interactive terminal UI (`scripts/nightshift-ui.sh`, 395 lines). Live view of task list with selection cursor, current phase, validation/chrome attempt counters, last error, and a scrollable log/event pane. Refreshes every 0.2s. `q` to quit, arrow keys to navigate, toggles for log mode. Pure bash + python3 (for JSON parse). No external TUI library.
+- **Runner state + event emitters.** Both `run-agent-loop.sh` and `nightshift-bulletproof.sh` now write `.agent-logs/run_state.json` (current snapshot) and append to `.agent-logs/run_events.jsonl` (event log) at every phase transition: run_start, task/step_start, validate_start, validate_failed, chrome_start, task/step_complete, tasks_complete, run_complete, stopped. This powers the TUI and any external monitoring.
+- **`ROADMAP-UI.md`** — staged plan for evolving the TUI toward a Claude-Code-like experience.
+
+### Fixed
+
+- TUI task-list rendering showed doubled checkboxes (`[ ] - [ ]`). Cause: `${line#- [ ] }` parameter strip — bash parses `[ ]` as a glob character class (one space), not literal brackets, so the prefix was never stripped. Fixed with fixed 6-char offset (`${line:6}`), since the `- [x] ` checkbox prefix is always exactly 6 chars.
+
+### Added — distribution + docs (from this session)
+
+- `USAGE.md` — consolidated how-to-use guide (three install paths + troubleshooting). Surfaces the "must run `/plugin install` AFTER `/plugin marketplace add`" gotcha.
+- `.github/workflows/npm-publish.yml` — auto-publish to npm on tag push (needs `NPM_TOKEN` secret with bypass-2FA; fails-safe when missing).
+- Branch protection on `main` with 8 required status checks. No force-push, no deletion.
+- README install section links to `USAGE.md` and clarifies the `/plugin install` + full-restart requirement.
 
 ## [1.5.2] — 2026-05-28
 
