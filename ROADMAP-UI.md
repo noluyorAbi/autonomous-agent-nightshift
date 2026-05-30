@@ -166,3 +166,25 @@ Goal: make the CLI feel like Claude Code with an interactive TUI that shows task
 - Live runs are controllable (pause/resume/stop)
 - Non-TTY fallback works
 - Existing CLI flows unchanged
+
+---
+
+## Shipped in 1.7.0 — interactive + bidirectional
+
+Stages 1-5 are complete, plus the bidirectional layer the roadmap pointed at:
+
+- **Write to the run.** `i`/`/` opens an input bar; the typed message is injected
+  into the agent's next prompt (`LIVE OPERATOR NOTES`). This is the headline
+  feature — a one-way overnight runner is now a two-way conversation.
+- **Cooperative control.** `p`/`r`/`n`/`s`/`x` (pause/resume/skip/stop) write to
+  `.agent-logs/ui_control`; runners drain at safe boundaries. `K` force-kills.
+- **Visual rebuild.** Status badge, progress bar, two-pane layout, color theme
+  (`NO_COLOR` aware), flicker-free redraw, last-action feedback line.
+- **Protocol test.** `scripts/test-ui-control.sh` (30 assertions) in CI.
+
+### Next ideas (not yet built)
+
+- Scrollback / search in the log pane (`/` is taken by input; use `g/G` + `f`).
+- Per-task cost + ETA once token accounting lands.
+- A `nightshift ui --attach <dir>` to watch a run in another repo.
+- Inline diff preview of the last commit per task.

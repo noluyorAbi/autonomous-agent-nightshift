@@ -116,6 +116,11 @@ jobs:
           grep -q "todo-.*_smoke-test.md" run-agent-loop.sh && echo "OK: TODO_FILE substituted"
           cd / && rm -rf "$TMP"
 
+      - name: ui <-> runner control protocol
+        run: |
+          chmod +x scripts/test-ui-control.sh
+          bash scripts/test-ui-control.sh
+
   npm-pack-validation:
     name: npm pack dry-run
     runs-on: ubuntu-latest

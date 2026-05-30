@@ -76,7 +76,7 @@ nightshift init add-dark-mode
 # Launch
 nightshift start
 nightshift tail              # follow the summary log
-nightshift ui                # interactive TUI (tasks, logs, status)
+nightshift ui                # interactive TUI — watch live AND message the agent
 
 # Sleep
 
@@ -85,6 +85,45 @@ nightshift status
 nightshift review
 git diff --stat
 git add -p && git commit
+```
+
+### Interactive UI (`nightshift ui`)
+
+A live, two-way terminal dashboard for a running nightshift — see progress AND
+steer it without restarting. Run it in a second terminal while `nightshift
+start` works in the background.
+
+Layout: a status header (badge + progress bar + iteration + cost), a task pane
+next to a live log pane, a status footer (phase, validation/chrome counters,
+last error), and an input/keys bar at the bottom.
+
+Keys:
+
+| Key        | Action                                                       |
+|------------|--------------------------------------------------------------|
+| `i` or `/` | Open the input bar and **type a message to the agent**. Enter sends, Esc cancels. |
+| `p` / `r`  | Pause / resume the run                                       |
+| `n`        | Skip the current task/step                                   |
+| `s` / `x`  | Stop the run gracefully                                      |
+| `K`        | Force-kill the runner (last resort)                          |
+| `j`/`k`, arrows | Move the task selection                                 |
+| `t`        | Toggle the log source (summary vs. event stream)             |
+| `?`        | Help overlay                                                 |
+| `q`        | Quit the UI (the run keeps going)                            |
+
+How "message the agent" works: your text is appended to `.agent-logs/ui_control`,
+the runner picks it up at the next `claude` call and folds it into the prompt as
+a `LIVE OPERATOR NOTES` section. Pause/skip/stop are cooperative too — applied at
+the next safe boundary, so the agent is never frozen mid-call. Quitting the UI
+does not stop the run. Set `NO_COLOR=1` for a monochrome UI. Non-TTY falls back
+to `nightshift tail`.
+
+Watch a run in another repo without leaving this one:
+
+```bash
+nightshift ui --attach /path/to/other/repo
+# or
+nightshift ui /path/to/other/repo
 ```
 
 ### Update
