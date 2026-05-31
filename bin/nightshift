@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="1.8.0"
+VERSION="1.9.0"
 REPO_URL="https://github.com/noluyorAbi/autonomous-agent-nightshift"
 
 # ---- Locate ROOT (where scripts/, templates/, docs/ live) ----
@@ -220,6 +220,9 @@ cmd_tail() {
 
 cmd_ui() {
     local bundle="$ROOT/ui/dist/cli.js"
+    # Let the TUI re-invoke our subcommands (start/stop/review/...) as a control
+    # center, without reimplementing any runner logic.
+    export NIGHTSHIFT_BIN="$ROOT/bin/nightshift"
     # Prefer the rich Ink TUI when Node and the prebuilt bundle are present.
     # Falls back to the bash "lite" UI otherwise (e.g. brew/curl installs with
     # no Node). NIGHTSHIFT_UI_BASH=1 forces the fallback.
@@ -371,7 +374,9 @@ EOF
 
 main() {
     if [ $# -eq 0 ]; then
-        cmd_help
+        # Bare `nightshift` in a terminal launches the TUI (the default front
+        # door). Piped / non-interactive invocations print help for scripting.
+        if [ -t 0 ] && [ -t 1 ]; then cmd_ui; else cmd_help; fi
         exit 0
     fi
 

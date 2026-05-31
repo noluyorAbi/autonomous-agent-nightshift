@@ -256,3 +256,70 @@ export function buildCommitPreview(sha: string): string[] {
     return [];
   }
 }
+
+// ---- Control-center helpers (home vs live, launcher) ----
+
+// A run is "live" when runner.pid exists and that process is alive.
+export function runnerAlive(): boolean {
+  if (!existsSync(PID_FILE)) return false;
+  let pid = 0;
+  try {
+    pid = parseInt(readFileSync(PID_FILE, 'utf8').trim(), 10);
+  } catch {
+    return false;
+  }
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0); // probe; throws if not running / not permitted
+    return true;
+  } catch (e) {
+    // EPERM means the process exists but we can't signal it — still alive.
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+export interface TodoFileInfo {
+  file: string;
+  total: number;
+  done: number;
+  bulletproof: boolean;
+}
+
+// List runnable task files in the cwd with their checkbox counts.
+export function listTodoFiles(): TodoFileInfo[] {
+  const out: TodoFileInfo[] = [];
+  let names: string[] = [];
+  try {
+    names = readdirSync('.')
+      .filter((f) => /^todo-.*\.md$/.test(f))
+      .sort();
+  } catch {
+    /* ignore */
+  }
+  if (existsSync('BULLETPROOF-STEPS.md')) names.push('BULLETPROOF-STEPS.md');
+  for (const f of names) {
+    const tasks = readTasks(f);
+    out.push({
+      file: f,
+      total: tasks.length,
+      done: tasks.filter((t) => t.box === 'x').length,
+      bulletproof: f === 'BULLETPROOF-STEPS.md',
+    });
+  }
+  return out;
+}
+
+// Has `nightshift init` been run here? (start-nightshift.sh is the marker.)
+export function isInitialized(): boolean {
+  return existsSync('start-nightshift.sh');
+}
+
+// One-line summary of the most recent run from state, or '' when none.
+export function lastRunSummary(state: RunState | null): string {
+  if (!state || !state.status) return '';
+  const idx = state.taskIndex || 0;
+  const total = state.taskTotal || 0;
+  const where = total ? ` · task ${idx}/${total}` : '';
+  const cost = state.cost ? ` · ~$${state.cost}` : '';
+  return `last run: ${state.status}${where}${cost}`;
+}

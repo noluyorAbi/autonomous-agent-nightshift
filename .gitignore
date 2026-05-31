@@ -14,6 +14,15 @@ Thumbs.db
 # Node (in case users mistakenly copy the repo into a project root)
 node_modules/
 
+# `nightshift init` output, if accidentally run in this repo's own root.
+# (The real templates live in scripts/; these root copies are user-project
+# artifacts and must never be committed here.)
+/run-agent-loop.sh
+/start-nightshift.sh
+/nightshift-bulletproof.sh
+/todo-*.md
+/BULLETPROOF-STEPS.md
+
 # Ruflo plugin local memory
 ruvector.db
 agentdb.rvf

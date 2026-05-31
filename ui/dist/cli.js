@@ -39268,7 +39268,7 @@ var import_react32 = __toESM(require_react(), 1);
 var import_react33 = __toESM(require_react(), 1);
 
 // src/cli.tsx
-import { existsSync as existsSync3, statSync as statSync2 } from "node:fs";
+import { statSync as statSync2 } from "node:fs";
 
 // src/components/App.tsx
 var import_react36 = __toESM(require_react(), 1);
@@ -39496,6 +39496,52 @@ function buildCommitPreview(sha) {
     return [];
   }
 }
+function runnerAlive() {
+  if (!existsSync2(PID_FILE)) return false;
+  let pid = 0;
+  try {
+    pid = parseInt(readFileSync2(PID_FILE, "utf8").trim(), 10);
+  } catch {
+    return false;
+  }
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+function listTodoFiles() {
+  const out = [];
+  let names = [];
+  try {
+    names = readdirSync(".").filter((f) => /^todo-.*\.md$/.test(f)).sort();
+  } catch {
+  }
+  if (existsSync2("BULLETPROOF-STEPS.md")) names.push("BULLETPROOF-STEPS.md");
+  for (const f of names) {
+    const tasks = readTasks(f);
+    out.push({
+      file: f,
+      total: tasks.length,
+      done: tasks.filter((t) => t.box === "x").length,
+      bulletproof: f === "BULLETPROOF-STEPS.md"
+    });
+  }
+  return out;
+}
+function isInitialized() {
+  return existsSync2("start-nightshift.sh");
+}
+function lastRunSummary(state) {
+  if (!state || !state.status) return "";
+  const idx = state.taskIndex || 0;
+  const total = state.taskTotal || 0;
+  const where = total ? ` \xB7 task ${idx}/${total}` : "";
+  const cost = state.cost ? ` \xB7 ~$${state.cost}` : "";
+  return `last run: ${state.status}${where}${cost}`;
+}
 
 // src/hooks.ts
 function setInterval_(fn, ms) {
@@ -39513,7 +39559,10 @@ function useRun(intervalMs = 200) {
       const s = JSON.stringify({
         st: next.state,
         stale: next.stale,
+        live: next.live,
         t: next.tasks,
+        td: next.todos,
+        init: next.initialized,
         p: next.pulse
       });
       if (s !== sig.current) {
@@ -39530,11 +39579,76 @@ function readOnce(prevGood) {
   const fresh = loadState();
   const state = fresh ?? prevGood;
   const stale = fresh === null && prevGood !== null;
+  const live = runnerAlive();
   const summaryLog = state ? detectSummaryLog(state) : "";
   const taskFile = state ? detectTaskFile(state) : "";
   const tasks = readTasks(taskFile);
-  const pulse = Math.round(fileMtimeMs(STATE_FILE)) + Math.round(fileMtimeMs(EVENTS_FILE)) + Math.round(fileMtimeMs(summaryLog)) + Math.round(fileMtimeMs(state?.activeLog ?? ""));
-  return { state, stale, tasks, summaryLog, eventsFile: EVENTS_FILE, pulse };
+  const pulse = Math.round(fileMtimeMs(STATE_FILE)) + Math.round(fileMtimeMs(EVENTS_FILE)) + Math.round(fileMtimeMs(summaryLog)) + Math.round(fileMtimeMs(PID_FILE)) + Math.round(fileMtimeMs(state?.activeLog ?? ""));
+  return {
+    state,
+    stale,
+    live,
+    tasks,
+    todos: live ? [] : listTodoFiles(),
+    initialized: isInitialized(),
+    summaryLog,
+    eventsFile: EVENTS_FILE,
+    pulse
+  };
+}
+
+// src/actions.ts
+import { spawn } from "node:child_process";
+import { existsSync as existsSync3 } from "node:fs";
+function nightshiftBin() {
+  return process.env["NIGHTSHIFT_BIN"] || "nightshift";
+}
+var COMMANDS = [
+  { id: "start", label: "start", desc: "launch the configured run", kind: "start" },
+  { id: "stop", label: "stop", desc: "halt the runner gracefully", kind: "stop", needsRun: true },
+  { id: "status", label: "status", desc: "is it alive? what task?", kind: "capture" },
+  { id: "review", label: "review", desc: "morning report: summary + diff", kind: "capture" },
+  { id: "resume", label: "resume", desc: "diagnose + restart after a stop", kind: "capture" },
+  { id: "init", label: "init", desc: "bootstrap a project (prompts for a name)", kind: "init" },
+  { id: "bulletproof-init", label: "bulletproof", desc: "branch + commit-per-step PR mode", kind: "capture" },
+  { id: "version", label: "version", desc: "show the CLI version", kind: "capture" }
+];
+function runCapture(args, cb) {
+  const bin = nightshiftBin();
+  let out = "";
+  let child;
+  try {
+    child = spawn(bin, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, NO_COLOR: "1" }
+    });
+  } catch (e) {
+    cb(`failed to spawn ${bin}: ${String(e)}`, 1);
+    return;
+  }
+  child.stdout?.on("data", (d) => {
+    out += d.toString();
+  });
+  child.stderr?.on("data", (d) => {
+    out += d.toString();
+  });
+  child.on("error", (e) => cb(`error running ${bin} ${args.join(" ")}: ${String(e)}`, 1));
+  child.on("close", (code) => cb(out.trim() || "(no output)", code ?? 0));
+}
+function startRun() {
+  if (!existsSync3("start-nightshift.sh")) {
+    return { ok: false, msg: "not initialized \u2014 run `init` first" };
+  }
+  try {
+    const child = spawn("bash", ["start-nightshift.sh", "start"], {
+      detached: true,
+      stdio: "ignore"
+    });
+    child.unref();
+    return { ok: true, msg: "run starting\u2026" };
+  } catch (e) {
+    return { ok: false, msg: `start failed: ${String(e)}` };
+  }
 }
 
 // src/theme.ts
@@ -39559,6 +39673,8 @@ function statusBadge(status) {
       return { label: "DONE", bg: "blue", fg: "white" };
     case "starting":
       return { label: "STARTING", bg: "cyan", fg: "black" };
+    case "idle":
+      return { label: "IDLE", bg: "gray", fg: "black" };
     default:
       return { label: (status || "unknown").toUpperCase(), bg: "gray", fg: "black" };
   }
@@ -39596,9 +39712,12 @@ var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
 function Header({
   state,
   taskIdx,
-  taskTotal
+  taskTotal,
+  statusOverride
 }) {
-  const badge = statusBadge(state.status);
+  const status = statusOverride ?? state.status;
+  const badge = statusBadge(status);
+  const idle = status === "idle";
   const bar = progressBar(taskIdx, taskTotal, 16);
   const cost = state.cost ? `~$${state.cost}` : "cost n/a";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", children: [
@@ -39614,12 +39733,12 @@ function Header({
         badge.label,
         " "
       ] }),
-      state.status === "running" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { color: theme.ok, children: [
+      status === "running" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { color: theme.ok, children: [
         " ",
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(build_default, { type: "dots" })
       ] }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexGrow: 1 }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { color: theme.muted, children: [
+      idle ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: theme.muted, children: "control center" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { color: theme.muted, children: [
         "task ",
         taskIdx,
         "/",
@@ -39631,7 +39750,7 @@ function Header({
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: " " })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
+    idle ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: " " }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: theme.ok, children: bar }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { color: theme.muted, children: [
@@ -39811,10 +39930,141 @@ function row(k, label) {
   ] }, k);
 }
 
-// src/components/App.tsx
+// src/components/Home.tsx
 var import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+function Home({
+  todos,
+  selected,
+  initialized,
+  leftWidth,
+  rows
+}) {
+  const left = [/* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { bold: true, children: "TODO FILES" }, "h")];
+  if (todos.length === 0) {
+    left.push(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { color: theme.muted, children: [
+        "  ",
+        "none found \u2014 `init` to create one"
+      ] }, "none")
+    );
+  }
+  for (let i = 0; i < todos.length; i++) {
+    const t = todos[i];
+    const isSel = i + 1 === selected;
+    const tag = t.bulletproof ? "BP" : `${t.done}/${t.total}`;
+    const complete = t.total > 0 && t.done === t.total;
+    const label = `${t.file}  (${tag})`;
+    left.push(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { wrap: "truncate", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: theme.accent, children: isSel ? "\u203A " : "  " }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { inverse: isSel, color: isSel ? void 0 : complete ? theme.muted : theme.ok, children: label.slice(0, Math.max(leftWidth - 3, 1)) })
+      ] }, t.file)
+    );
+  }
+  const startLabel = initialized ? "\u23CE  Start run" : "\u23CE  Init project first";
+  const actions = [
+    [startLabel, ""],
+    ["n", "Init new project"],
+    ["v", "Review last run"],
+    ["R", "Resume after a stop"],
+    [":", "Command palette (all commands)"],
+    ["q", "Quit"]
+  ];
+  const right = [/* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { bold: true, children: "ACTIONS" }, "h")];
+  for (const [k, label] of actions) {
+    right.push(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { children: [
+        "  ",
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: theme.accent, children: k }),
+        label ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { color: theme.muted, children: [
+          " ",
+          label
+        ] }) : null
+      ] }, k + label)
+    );
+  }
+  const pad = (arr) => {
+    const o = [...arr];
+    while (o.length < rows + 1) o.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }, `p${o.length}`));
+    return o.slice(0, rows + 1);
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Box_default, { flexDirection: "row", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Box_default, { flexDirection: "column", width: leftWidth, children: pad(left) }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Box_default, { flexDirection: "column", marginX: 1, children: Array.from({ length: rows + 1 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: theme.muted, children: "\u2502" }, i)) }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Box_default, { flexDirection: "column", children: pad(right) })
+  ] });
+}
+
+// src/components/CommandPalette.tsx
+var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+function CommandPalette({
+  commands,
+  selected,
+  rows
+}) {
+  const body = [];
+  for (let i = 0; i < rows; i++) {
+    const c = commands[i];
+    if (!c) {
+      body.push(/* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { children: " " }, i));
+      continue;
+    }
+    const isSel = i === selected;
+    body.push(
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Text, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { color: theme.accent, children: isSel ? "\u203A " : "  " }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { inverse: isSel, bold: isSel, children: c.label.padEnd(14) }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Text, { color: theme.muted, children: [
+          " ",
+          c.desc
+        ] })
+      ] }, i)
+    );
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { bold: true, color: theme.accent, children: "Run a command" }),
+    body,
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { color: theme.muted, children: " \u2191/\u2193 select \xB7 \u23CE run \xB7 q/Esc close" })
+  ] });
+}
+
+// src/components/OutputModal.tsx
+var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+function OutputModal({
+  title,
+  lines,
+  offset,
+  rows,
+  width,
+  running
+}) {
+  const view = lines.slice(offset, offset + rows);
+  const body = [];
+  for (let i = 0; i < rows; i++) {
+    const l = view[i] ?? "";
+    body.push(
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { wrap: "truncate", children: l.slice(0, width) }, i)
+    );
+  }
+  const more = lines.length > offset + rows ? ` \xB7 \u2193 ${lines.length - offset - rows} more` : "";
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Box_default, { flexDirection: "column", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Text, { bold: true, color: theme.accent, children: [
+      title,
+      running ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: theme.warn, children: " (running\u2026)" }) : null
+    ] }),
+    body,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Text, { color: theme.muted, children: [
+      " ",
+      "j/k scroll \xB7 q/Esc close",
+      more
+    ] })
+  ] });
+}
+
+// src/components/App.tsx
+var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
 var EMPTY = {
-  status: "unknown",
+  status: "",
   phase: "",
   taskIndex: 0,
   taskTotal: 0,
@@ -39833,9 +40083,9 @@ var EMPTY = {
   planFile: "",
   activeLog: ""
 };
-function effectiveSelected(selected, taskCount, activeIdx, firstOpen) {
-  if (selected > 0) return Math.min(selected, Math.max(taskCount, 1));
-  if (activeIdx > 0) return activeIdx;
+function effectiveSelected(sel, count, active, firstOpen) {
+  if (sel > 0) return Math.min(sel, Math.max(count, 1));
+  if (active > 0) return active;
   if (firstOpen > 0) return firstOpen;
   return 1;
 }
@@ -39844,13 +40094,19 @@ function App2({ inputActive = true }) {
   const { stdout } = use_stdout_default();
   const snap = useRun();
   const [selected, setSelected] = (0, import_react36.useState)(0);
+  const [homeSel, setHomeSel] = (0, import_react36.useState)(1);
   const [logMode, setLogMode] = (0, import_react36.useState)("summary");
   const [mode, setMode] = (0, import_react36.useState)("nav");
   const [buffer, setBuffer] = (0, import_react36.useState)("");
   const [showHelp, setShowHelp] = (0, import_react36.useState)(false);
   const [lastAction, setLastAction] = (0, import_react36.useState)("ready");
   const [noteStatus, setNoteStatus] = (0, import_react36.useState)("");
+  const [overlay, setOverlay] = (0, import_react36.useState)("none");
+  const [palSel, setPalSel] = (0, import_react36.useState)(0);
+  const [modal, setModal] = (0, import_react36.useState)({ title: "", lines: [], offset: 0, running: false });
+  const [initBuf, setInitBuf] = (0, import_react36.useState)("");
   const [, forceTick] = (0, import_react36.useState)(0);
+  const modalSession = (0, import_react36.useRef)(0);
   (0, import_react36.useEffect)(() => {
     const onResize = () => forceTick((n) => n + 1);
     stdout?.on("resize", onResize);
@@ -39859,38 +40115,138 @@ function App2({ inputActive = true }) {
     };
   }, [stdout]);
   const state = snap.state ?? EMPTY;
+  const isLive = snap.live;
   const tasks = snap.tasks;
   const firstOpen = tasks.findIndex((t) => t.box === " ") + 1;
   const sel = effectiveSelected(selected, tasks.length, state.taskIndex, firstOpen);
-  use_input_default(
-    (input, key) => {
-      if (mode === "input") {
-        if (key.return) {
-          if (controlNote(buffer)) {
-            setNoteStatus("queued \u2713");
-            setLastAction("message sent to agent");
-          }
-          setBuffer("");
-          setMode("nav");
-          return;
-        }
-        if (key.escape) {
-          setBuffer("");
-          setMode("nav");
-          setLastAction("message cancelled");
-          return;
-        }
-        if (key.backspace || key.delete) {
-          setBuffer((b) => b.slice(0, -1));
-          return;
-        }
-        if (input && !key.ctrl && !key.meta) setBuffer((b) => b + input);
+  const todos = snap.todos;
+  const initialized = snap.initialized;
+  const cols = Math.max(stdout?.columns ?? 80, 50);
+  const rows = Math.max(stdout?.rows ?? 24, 14);
+  const leftWidth = Math.min(Math.floor(cols / 2), 48);
+  const rightWidth = Math.max(cols - leftWidth - 5, 10);
+  const bodyRows = Math.max(rows - 11, 3);
+  function runCommand(cmd) {
+    if (cmd.kind === "start") {
+      const r = startRun();
+      setLastAction(r.msg);
+      setOverlay("none");
+      return;
+    }
+    if (cmd.kind === "stop") {
+      if (isLive) {
+        controlSend("stop");
+        setLastAction("sent: stop");
+      } else {
+        runCapture(["stop"], () => {
+        });
+        setLastAction("stop requested");
+      }
+      setOverlay("none");
+      return;
+    }
+    if (cmd.kind === "init") {
+      setInitBuf("");
+      setOverlay("init");
+      return;
+    }
+    const session = ++modalSession.current;
+    setModal({ title: `nightshift ${cmd.id}`, lines: [], offset: 0, running: true });
+    setOverlay("modal");
+    runCapture([cmd.id], (out) => {
+      if (modalSession.current !== session) return;
+      setModal({ title: `nightshift ${cmd.id}`, lines: out.split("\n"), offset: 0, running: false });
+    });
+  }
+  function submitInit() {
+    const name = initBuf.trim();
+    const session = ++modalSession.current;
+    setModal({ title: `nightshift init ${name}`, lines: [], offset: 0, running: true });
+    setOverlay("modal");
+    runCapture(["init", name], (out) => {
+      if (modalSession.current !== session) return;
+      setModal({ title: `nightshift init ${name}`, lines: out.split("\n"), offset: 0, running: false });
+    });
+  }
+  use_input_default((input, key) => {
+    if (overlay === "modal") {
+      const maxOf = (m) => Math.max(0, m.lines.length - bodyRows);
+      if (key.escape || input === "q") setOverlay("none");
+      else if (input === "j" || key.downArrow) setModal((m) => ({ ...m, offset: Math.min(m.offset + 1, maxOf(m)) }));
+      else if (input === "k" || key.upArrow) setModal((m) => ({ ...m, offset: Math.max(m.offset - 1, 0) }));
+      else if (input === "g") setModal((m) => ({ ...m, offset: 0 }));
+      else if (input === "G") setModal((m) => ({ ...m, offset: maxOf(m) }));
+      return;
+    }
+    if (overlay === "init") {
+      if (key.return) {
+        submitInit();
         return;
       }
-      if (input === "q") {
-        exit();
+      if (key.escape) {
+        setOverlay("none");
+        setInitBuf("");
+        setLastAction("init cancelled");
         return;
       }
+      if (key.backspace || key.delete) {
+        setInitBuf((b) => b.slice(0, -1));
+        return;
+      }
+      if (input && !key.ctrl && !key.meta) setInitBuf((b) => b + input);
+      return;
+    }
+    if (overlay === "palette") {
+      if (key.escape || input === "q") {
+        setOverlay("none");
+        return;
+      }
+      if (input === "j" || key.downArrow) setPalSel((p) => Math.min(p + 1, COMMANDS.length - 1));
+      else if (input === "k" || key.upArrow) setPalSel((p) => Math.max(p - 1, 0));
+      else if (key.return) runCommand(COMMANDS[palSel]);
+      return;
+    }
+    if (showHelp) {
+      if (input === "?" || key.escape || input === "q") setShowHelp(false);
+      return;
+    }
+    if (isLive && mode === "input") {
+      if (key.return) {
+        if (controlNote(buffer)) {
+          setNoteStatus("queued \u2713");
+          setLastAction("message sent to agent");
+        }
+        setBuffer("");
+        setMode("nav");
+        return;
+      }
+      if (key.escape) {
+        setBuffer("");
+        setMode("nav");
+        setLastAction("message cancelled");
+        return;
+      }
+      if (key.backspace || key.delete) {
+        setBuffer((b) => b.slice(0, -1));
+        return;
+      }
+      if (input && !key.ctrl && !key.meta) setBuffer((b) => b + input);
+      return;
+    }
+    if (input === ":") {
+      setPalSel(0);
+      setOverlay("palette");
+      return;
+    }
+    if (input === "?") {
+      setShowHelp(true);
+      return;
+    }
+    if (input === "q") {
+      exit();
+      return;
+    }
+    if (isLive) {
       if (input === "i" || input === "/") {
         setMode("input");
         setBuffer("");
@@ -39907,39 +40263,27 @@ function App2({ inputActive = true }) {
       } else if (input === "s" || input === "x") {
         controlSend("stop");
         setLastAction("sent: stop");
-      } else if (input === "K") {
-        setLastAction(forceKillRunner());
-      } else if (input === "?") {
-        setShowHelp((v) => !v);
-      } else if (input === "t") {
-        setLogMode((m) => m === "summary" ? "events" : "summary");
-      } else if (input === "j" || key.downArrow) {
-        setSelected(Math.min(sel + 1, tasks.length || 1));
-      } else if (input === "k" || key.upArrow) {
-        setSelected(Math.max(sel - 1, 1));
-      } else if (input === "g") {
-        setSelected(1);
-      } else if (input === "G") {
-        setSelected(tasks.length || 1);
-      }
-    },
-    { isActive: inputActive }
-  );
-  const cols = Math.max(stdout?.columns ?? 80, 50);
-  const rows = Math.max(stdout?.rows ?? 24, 14);
-  const leftWidth = Math.min(Math.floor(cols / 2), 48);
-  const rightWidth = Math.max(cols - leftWidth - 5, 10);
-  const bodyRows = Math.max(rows - 11, 3);
-  const previewCache = (0, import_react36.useRef)({
-    idx: -1,
-    sha: "",
-    lines: []
-  });
+      } else if (input === "K") setLastAction(forceKillRunner());
+      else if (input === "t") setLogMode((m) => m === "summary" ? "events" : "summary");
+      else if (input === "j" || key.downArrow) setSelected(Math.min(sel + 1, tasks.length || 1));
+      else if (input === "k" || key.upArrow) setSelected(Math.max(sel - 1, 1));
+      else if (input === "g") setSelected(1);
+      else if (input === "G") setSelected(tasks.length || 1);
+    } else {
+      if (key.return) runCommand(COMMANDS[0]);
+      else if (input === "n") runCommand({ id: "init", label: "init", desc: "", kind: "init" });
+      else if (input === "v") runCommand({ id: "review", label: "review", desc: "", kind: "capture" });
+      else if (input === "R") runCommand({ id: "resume", label: "resume", desc: "", kind: "capture" });
+      else if (input === "j" || key.downArrow) setHomeSel((s) => Math.min(s + 1, todos.length || 1));
+      else if (input === "k" || key.upArrow) setHomeSel((s) => Math.max(s - 1, 1));
+    }
+  }, { isActive: inputActive });
+  const previewCache = (0, import_react36.useRef)({ idx: -1, sha: "", lines: [] });
   let rightLabel = `LOG (${logMode})`;
   let rightLines = [];
   let showCommit = false;
   const selTask = tasks[sel - 1];
-  if (!showHelp && logMode === "summary" && selTask && selTask.box === "x" && selTask.num) {
+  if (isLive && !showHelp && logMode === "summary" && selTask && selTask.box === "x" && selTask.num) {
     if (previewCache.current.idx !== sel) {
       const sha = findTaskCommit(selTask.num);
       previewCache.current = { idx: sel, sha, lines: sha ? buildCommitPreview(sha) : [] };
@@ -39950,44 +40294,79 @@ function App2({ inputActive = true }) {
       rightLines = previewCache.current.lines;
     }
   }
-  if (!showCommit) {
-    const file = logMode === "events" ? snap.eventsFile : snap.summaryLog;
-    rightLines = tailLines(file, bodyRows);
+  if (isLive && !showCommit) {
+    rightLines = tailLines(logMode === "events" ? snap.eventsFile : snap.summaryLog, bodyRows);
   }
   const taskIdx = state.taskIndex > 0 ? state.taskIndex : sel;
   const taskTotal = state.taskTotal > 0 ? state.taskTotal : tasks.length;
+  const displayStatus = isLive ? state.status || "running" : "idle";
+  const subline = snap.stale ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.warn, children: " (state stale \u2014 runner not updating)" }) : !isLive ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: theme.muted, children: [
+    " ",
+    lastRunSummary(snap.state) || "no active run \u2014 pick a todo and press Enter to start"
+  ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " });
   const sep = [];
-  for (let i = 0; i < bodyRows + 1; i++)
-    sep.push(
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: theme.muted, children: "\u2502" }, i)
-    );
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: theme.muted, paddingX: 1, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Header, { state, taskIdx, taskTotal }),
-    snap.stale ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: theme.warn, children: " (state stale \u2014 runner not updating)" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
-    showHelp ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Help, { rows: bodyRows + 1 }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Box_default, { flexDirection: "row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Box_default, { flexDirection: "column", width: leftWidth, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { bold: true, children: "TASKS" }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          TaskList,
-          {
-            tasks,
-            selected: sel,
-            activeIdx: state.taskIndex,
-            width: leftWidth,
-            rows: bodyRows
-          }
-        )
+  for (let i = 0; i < bodyRows + 1; i++) sep.push(/* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: "\u2502" }, i));
+  function liveBody() {
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", width: leftWidth, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, children: "TASKS" }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(TaskList, { tasks, selected: sel, activeIdx: state.taskIndex, width: leftWidth, rows: bodyRows })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Box_default, { flexDirection: "column", marginX: 1, children: sep }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Box_default, { flexDirection: "column", width: rightWidth, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(RightPane, { label: rightLabel, lines: rightLines, width: rightWidth, rows: bodyRows }) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Box_default, { marginTop: 0, flexDirection: "column", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusBar, { state, lastAction }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(MessageBar, { mode, buffer, noteStatus })
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { flexDirection: "column", marginX: 1, children: sep }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { flexDirection: "column", width: rightWidth, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(RightPane, { label: rightLabel, lines: rightLines, width: rightWidth, rows: bodyRows }) })
+    ] });
+  }
+  let body;
+  if (showHelp) body = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Help, { rows: bodyRows + 1 });
+  else if (overlay === "palette") body = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(CommandPalette, { commands: COMMANDS, selected: palSel, rows: bodyRows + 1 });
+  else if (overlay === "modal") body = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(OutputModal, { title: modal.title, lines: modal.lines, offset: modal.offset, rows: bodyRows, width: cols - 2, running: modal.running });
+  else if (overlay === "init") {
+    body = /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, color: theme.accent, children: "Init a new project" }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: "  feature name: " }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: initBuf }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { inverse: true, children: " " })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: "  creates a todo + runner in this dir. \u23CE create \xB7 Esc cancel" })
+    ] });
+  } else if (isLive) body = liveBody();
+  else body = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Home, { todos, selected: homeSel, initialized, leftWidth, rows: bodyRows - 1 });
+  let hint;
+  if (isLive && mode === "input") hint = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MessageBar, { mode: "input", buffer, noteStatus });
+  else if (overlay !== "none" || showHelp) hint = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: " q/Esc back \xB7 : commands" });
+  else if (isLive) hint = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MessageBar, { mode: "nav", buffer: "", noteStatus });
+  else hint = /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { children: [
+    " ",
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.accent, children: "\u23CE" }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: " start  " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.accent, children: "n" }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: " init  " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.accent, children: "v" }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: " review  " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.accent, children: ":" }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: " commands  " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.accent, children: "?" }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: " help  " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.accent, children: "q" }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: theme.muted, children: " quit" })
+  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: theme.muted, paddingX: 1, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Header, { state, taskIdx, taskTotal, statusOverride: displayStatus }),
+    subline,
+    body,
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { flexDirection: "column", children: isLive && overlay === "none" && !showHelp ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(StatusBar, { state, lastAction }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: theme.muted, children: [
+      " ",
+      lastAction
+    ] }) }),
+    hint
   ] });
 }
 
 // src/cli.tsx
-var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
 var HELP = `nightshift ui \u2014 interactive dashboard for a live nightshift run
 
 Usage: nightshift ui [DIR]
@@ -40038,15 +40417,8 @@ if (dir) {
   }
   process.chdir(dir);
 }
-if (!existsSync3(LOG_DIR)) {
-  process.stderr.write(
-    `No ${LOG_DIR} in ${process.cwd()} \u2014 run \`nightshift start\` first.
-`
-  );
-  process.exit(1);
-}
 if (selftest) {
-  const { unmount } = render_default(/* @__PURE__ */ (0, import_jsx_runtime8.jsx)(App2, { inputActive: false }), { patchConsole: false });
+  const { unmount } = render_default(/* @__PURE__ */ (0, import_jsx_runtime11.jsx)(App2, { inputActive: false }), { patchConsole: false });
   setTimeout(() => {
     unmount();
     process.exit(0);
@@ -40055,7 +40427,7 @@ if (selftest) {
   process.stdout.write("Non-TTY detected. Use: nightshift tail\n");
   process.exit(0);
 } else {
-  render_default(/* @__PURE__ */ (0, import_jsx_runtime8.jsx)(App2, {}));
+  render_default(/* @__PURE__ */ (0, import_jsx_runtime11.jsx)(App2, {}));
 }
 /*! Bundled license information:
 

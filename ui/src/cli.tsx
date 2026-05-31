@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 import { render } from 'ink';
-import { existsSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { App } from './components/App';
-import { LOG_DIR } from './protocol';
 
 const HELP = `nightshift ui — interactive dashboard for a live nightshift run
 
@@ -59,12 +58,8 @@ if (dir) {
   process.chdir(dir);
 }
 
-if (!existsSync(LOG_DIR)) {
-  process.stderr.write(
-    `No ${LOG_DIR} in ${process.cwd()} — run \`nightshift start\` first.\n`,
-  );
-  process.exit(1);
-}
+// No `.agent-logs/` check here: the TUI is also a launcher (home state) when no
+// run is active, so it must open even in a fresh / not-yet-started project.
 
 if (selftest) {
   // CI smoke: render one frame to stdout (no raw mode) and exit.
