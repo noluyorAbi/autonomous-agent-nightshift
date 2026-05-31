@@ -36,5 +36,5 @@
     "MD060": false
   },
   "globs": ["**/*.md"],
-  "ignores": ["node_modules", "site/node_modules", "site/dist", "examples"]
+  "ignores": ["node_modules", "site/node_modules", "site/dist", "ui/node_modules", "examples"]
 }

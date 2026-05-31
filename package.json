@@ -1,9 +1,12 @@
 {
   "name": "autonomous-agent-nightshift",
-  "version": "1.6.0",
-  "description": "Run Claude Code agents overnight on your codebase. Bash harness + Claude Code skill + slash commands. Write a todo file with Implementation+Validation pairs, launch, wake up to validated code.",
+  "version": "1.8.0",
+  "description": "Run Claude Code agents overnight on your codebase. Interactive terminal UI (Ink) + bash harness + Claude Code skill + slash commands. Write a todo file with Implementation+Validation pairs, launch, wake up to validated code.",
   "bin": {
     "nightshift": "./bin/nightshift"
+  },
+  "scripts": {
+    "prepack": "cd ui && npm ci && npm run build"
   },
   "files": [
     "bin/",
@@ -12,6 +15,8 @@
     "commands/",
     "docs/",
     "examples/",
+    "ui/dist/",
+    "ui/package.json",
     ".claude-plugin/",
     "SKILL.md",
     "LICENSE",
@@ -44,7 +49,7 @@
   "author": "noluyorAbi",
   "license": "MIT",
   "engines": {
-    "node": ">=14"
+    "node": ">=18"
   },
   "os": [
     "darwin",

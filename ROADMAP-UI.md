@@ -166,3 +166,45 @@ Goal: make the CLI feel like Claude Code with an interactive TUI that shows task
 - Live runs are controllable (pause/resume/stop)
 - Non-TTY fallback works
 - Existing CLI flows unchanged
+
+---
+
+## Shipped in 1.7.0 — interactive + bidirectional
+
+Stages 1-5 are complete, plus the bidirectional layer the roadmap pointed at:
+
+- **Write to the run.** `i`/`/` opens an input bar; the typed message is injected
+  into the agent's next prompt (`LIVE OPERATOR NOTES`). This is the headline
+  feature — a one-way overnight runner is now a two-way conversation.
+- **Cooperative control.** `p`/`r`/`n`/`s`/`x` (pause/resume/skip/stop) write to
+  `.agent-logs/ui_control`; runners drain at safe boundaries. `K` force-kills.
+- **Visual rebuild.** Status badge, progress bar, two-pane layout, color theme
+  (`NO_COLOR` aware), flicker-free redraw, last-action feedback line.
+- **Protocol test.** `scripts/test-ui-control.sh` (30 assertions) in CI.
+
+### Next ideas (not yet built)
+
+- Scrollback / search in the log pane (`/` is taken by input; use `g/G` + `f`).
+- Per-task cost + ETA once token accounting lands.
+- A `nightshift ui --attach <dir>` to watch a run in another repo.
+- Inline diff preview of the last commit per task.
+
+---
+
+## v2 — Ink/React rewrite (in progress)
+
+The bash ANSI dashboard hit its ceiling: more terminal-code complexity for less
+polish. v2 rebuilds `nightshift ui` as a real TUI (Node + Ink/React, exactly
+Claude Code's class of tooling) while keeping the bash runners untouched — it is
+a drop-in client of the same `.agent-logs/` protocol. The bash UI stays as the
+no-Node fallback.
+
+Full design: `docs/superpowers/specs/2026-05-30-nightshift-ui-v2-ink-tui-design.md`.
+
+- **Milestone 1 (done):** `ui/` workspace, esbuild single-file bundle,
+  `bin/nightshift` dispatch + bash fallback, CI `ui-build` job, and the dashboard
+  at parity (header, tasks, log, commit preview, status, messaging, control keys).
+- **M2:** live agent output stream (tail the active task's claude logfile).
+- **M3:** syntax-highlighted diff viewer + log scrollback/search.
+- **M4:** richer messaging — multiline compose, note history, delivery ack.
+- **M5:** mouse support + live cost/token/ETA metrics + polish.

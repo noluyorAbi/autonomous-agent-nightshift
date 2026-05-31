@@ -49,6 +49,7 @@ jobs:
             "#node_modules" \
             "#site/node_modules" \
             "#site/dist" \
+            "#ui/node_modules" \
             "#examples"
 
   validate-json:
@@ -116,6 +117,11 @@ jobs:
           grep -q "todo-.*_smoke-test.md" run-agent-loop.sh && echo "OK: TODO_FILE substituted"
           cd / && rm -rf "$TMP"
 
+      - name: ui <-> runner control protocol
+        run: |
+          chmod +x scripts/test-ui-control.sh
+          bash scripts/test-ui-control.sh
+
   npm-pack-validation:
     name: npm pack dry-run
     runs-on: ubuntu-latest
@@ -139,6 +145,52 @@ jobs:
           if echo "$OUTPUT" | grep -q "site/node_modules"; then echo "FAIL: site/node_modules leaked"; exit 1; fi
           if echo "$OUTPUT" | grep -q ".github/"; then echo "FAIL: .github/ leaked"; exit 1; fi
           echo "OK: npm package layout valid"
+
+  ui-build:
+    name: UI build (Ink TUI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: ui
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: ui
+        run: npm test
+
+      - name: Build bundle
+        working-directory: ui
+        run: npm run build
+
+      - name: Bundle is committed and in sync
+        run: |
+          if ! git diff --quiet -- ui/dist/cli.js; then
+            echo "FAIL: ui/dist/cli.js is out of sync with ui/src — run 'npm run build' in ui/ and commit the result."
+            git diff --stat -- ui/dist/cli.js || true
+            exit 1
+          fi
+          echo "OK: committed bundle is in sync"
+
+      - name: Selftest renders a frame
+        working-directory: ui
+        run: |
+          WORK=$(mktemp -d); mkdir -p "$WORK/.agent-logs"
+          printf '{"status":"running","phase":"loop","task_index":1,"task_total":1,"task_name":"ci","iteration":1,"max_iterations":9,"validation":{"attempt":0,"max_attempts":7,"last_error":""},"chrome":{"enabled":false,"attempt":0,"max_attempts":3},"todo_file":"todo.md"}' > "$WORK/.agent-logs/run_state.json"
+          printf -- '- [ ] **Task 1: ci frame**\n' > "$WORK/todo.md"
+          NO_COLOR=1 NIGHTSHIFT_UI_SELFTEST=1 node dist/cli.js --attach "$WORK" | grep -q "ci frame" \
+            && echo "OK: ui selftest frame" || { echo "FAIL: selftest frame"; exit 1; }
 
   site-build:
     name: Site build (Vite)

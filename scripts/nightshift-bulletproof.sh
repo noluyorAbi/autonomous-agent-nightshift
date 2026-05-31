@@ -38,6 +38,8 @@ ITERATION_STATE_FILE=".claude_iterations"
 STATE_FILE="$LOG_DIR/run_state.json"
 EVENTS_FILE="$LOG_DIR/run_events.jsonl"
 PID_FILE="$LOG_DIR/runner.pid"
+CONTROL_FILE="$LOG_DIR/ui_control"   # commands written by `nightshift ui` (pause/resume/stop/skip/note)
+NOTES_FILE="$LOG_DIR/ui_notes"       # live operator notes, consumed into the next claude prompt
 
 # --- Git ---
 BASE_BRANCH="main"                                       # <-- Your base branch
@@ -76,6 +78,11 @@ LAST_ERROR=""
 VALIDATION_ATTEMPT=0
 CHROME_ATTEMPT=0
 ITERATIONS=0
+
+# --- Live control (set by `nightshift ui` via CONTROL_FILE) ---
+CONTROL_PAUSE=0
+CONTROL_STOP=0
+CONTROL_SKIP=0
 
 # ======================== PARSE CLI ARGS ========================
 while [[ $# -gt 0 ]]; do
@@ -209,6 +216,93 @@ emit_event() {
         "$(json_escape "$ts")" \
         "$(json_escape "$type")" \
         "$(json_escape "$message")" >> "$EVENTS_FILE"
+}
+
+# ======================== LIVE CONTROL (nightshift ui) ========================
+# The interactive TUI writes one command per line into CONTROL_FILE:
+#   pause | resume | skip | stop | note:<free text>
+# Drained cooperatively at every claude call and at the top of each step, so
+# the agent is never frozen mid-call.
+
+control_drain() {
+    [ -f "$CONTROL_FILE" ] || return 0
+    local tmp="${CONTROL_FILE}.draining.$$"
+    mv "$CONTROL_FILE" "$tmp" 2>/dev/null || return 0
+    local cmd
+    while IFS= read -r cmd; do
+        case "$cmd" in
+            pause)   CONTROL_PAUSE=1 ;;
+            resume)  CONTROL_PAUSE=0 ;;
+            skip)    CONTROL_SKIP=1 ;;
+            stop)    CONTROL_STOP=1 ;;
+            note:*)  printf '%s\n' "${cmd#note:}" >> "$NOTES_FILE" ;;
+            "")      : ;;
+        esac
+    done < "$tmp"
+    rm -f "$tmp"
+}
+
+consume_notes() {
+    [ -f "$NOTES_FILE" ] || { printf ''; return 0; }
+    local tmp="${NOTES_FILE}.consume.$$"
+    mv "$NOTES_FILE" "$tmp" 2>/dev/null || { printf ''; return 0; }
+    local notes
+    notes=$(cat "$tmp" 2>/dev/null || true)
+    rm -f "$tmp"
+    [ -z "$notes" ] && { printf ''; return 0; }
+    # Logging goes to stderr/files only — this stdout is captured into the prompt.
+    log_warn "Operator note injected into next agent call" >&2
+    summary "  OPERATOR NOTE: $(printf '%s' "$notes" | tr '\n' ' ')"
+    emit_event "operator_note" "$(printf '%s' "$notes" | tr '\n' ' ')"
+    printf '\n\n## LIVE OPERATOR NOTES (sent from `nightshift ui` — treat as priority instructions)\n%s\n' "$notes"
+}
+
+# Record any operator notes still queued at shutdown into the summary + event
+# log. On stop there is no next agent call to fold them into, but the operator's
+# words must survive in the run record rather than being silently dropped.
+flush_pending_notes_to_log() {
+    [ -f "$NOTES_FILE" ] || return 0
+    local pending
+    pending=$(cat "$NOTES_FILE" 2>/dev/null || true)
+    rm -f "$NOTES_FILE"
+    [ -z "$pending" ] && return 0
+    local oneline
+    oneline=$(printf '%s' "$pending" | tr '\n' ' ')
+    log_warn "Operator note left at stop (run ending, not sent to agent): $oneline"
+    summary "  OPERATOR NOTE (unsent — run stopped): $oneline"
+    emit_event "operator_note_unsent" "$oneline"
+}
+
+maybe_graceful_stop() {
+    [ "${CONTROL_STOP:-0}" = "1" ] || return 0
+    flush_pending_notes_to_log
+    log_warn "Stop requested from nightshift ui — shutting down cleanly."
+    summary "STOPPED: operator requested stop via ui"
+    RUN_STATUS="stopped"
+    RUN_PHASE="stopped"
+    write_state
+    emit_event "stopped" "operator stop via ui"
+    stop_dev_server 2>/dev/null || true
+    exit 0
+}
+
+control_wait_if_paused() {
+    [ "${CONTROL_PAUSE:-0}" = "1" ] || return 0
+    local prev_status="$RUN_STATUS"
+    RUN_STATUS="paused"
+    write_state
+    emit_event "paused" "operator paused via ui"
+    log_warn "Paused from nightshift ui — waiting for resume..."
+    while [ "${CONTROL_PAUSE:-0}" = "1" ]; do
+        sleep 1
+        control_drain
+        [ "${CONTROL_STOP:-0}" = "1" ] && break
+    done
+    maybe_graceful_stop
+    RUN_STATUS="$prev_status"
+    write_state
+    emit_event "resumed" "operator resumed via ui"
+    log_success "Resumed."
 }
 
 # ======================== CODEBASE CONTEXT ========================
@@ -463,7 +557,14 @@ trap cleanup EXIT
 # ======================== CALL CLAUDE ========================
 # Handles rate limits, exponential backoff, retries
 call_claude() {
-    local prompt="$1" logfile="$2"
+    # Honor live control before spending money: drain queued ui commands,
+    # stop/pause if asked, then fold any operator notes into the prompt.
+    control_drain
+    maybe_graceful_stop
+    control_wait_if_paused
+    local notes
+    notes=$(consume_notes)
+    local prompt="$1$notes" logfile="$2"
     local max_retries=10
     local attempt=0
     local tmpout
@@ -1156,6 +1257,20 @@ main() {
         write_state
         emit_event "step_start" "Step $step_num: $step_title"
 
+        # ----- Live control: skip / stop / pause before spending on this step -----
+        control_drain
+        maybe_graceful_stop
+        control_wait_if_paused
+        if [ "${CONTROL_SKIP:-0}" = "1" ]; then
+            CONTROL_SKIP=0
+            log_warn "Skipping Step $step_num per nightshift ui."
+            summary "  SKIPPED: Step $step_num — $step_title (operator)"
+            emit_event "step_skipped" "Step $step_num: $step_title"
+            mark_step_progress "$step_num" "skipped"
+            sleep 1
+            continue
+        fi
+
         log_step "$step_num" "$step_title"
         log "Category: ${BOLD}$category_name${NC}"
         log "Progress: ${GREEN}$(echo "$stats" | cut -d'|' -f1) done${NC} | ${RED}$(echo "$stats" | cut -d'|' -f2) failed${NC} | ${elapsed}s elapsed"
@@ -1443,4 +1558,8 @@ Output CHROME_VERDICT: PASS or CHROME_VERDICT: FAIL with issues." "$chrome_log"
 }
 
 # ======================== RUN ========================
-main "$@"
+# Set NIGHTSHIFT_LIB_ONLY=1 to source this file for its functions without
+# starting a run (used by the control-protocol test).
+if [ "${NIGHTSHIFT_LIB_ONLY:-}" != "1" ]; then
+    main "$@"
+fi

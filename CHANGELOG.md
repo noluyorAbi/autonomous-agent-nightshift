@@ -4,6 +4,91 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-05-31
+
+### Added — `nightshift ui` v2: Claude-Code-grade Ink TUI (Milestone 1)
+
+A ground-up rebuild of the dashboard as a real terminal UI (Node + Ink/React),
+replacing the hand-rolled bash ANSI renderer. It is a drop-in client of the
+same `.agent-logs/` file protocol, so the bash runners are unchanged.
+
+- **New `ui/` workspace** — TypeScript + Ink, bundled by esbuild into a single
+  self-contained `ui/dist/cli.js` (no `node_modules` ships or installs). Requires
+  Node 22+ (ink 7's floor); `bin/nightshift` gates on it and falls back to the
+  bash UI below that.
+- **`bin/nightshift ui` dispatch** — uses the Ink TUI when Node 22+ and the
+  bundle are present, otherwise falls back to the bash UI (`scripts/nightshift-ui.sh`,
+  retained). `NIGHTSHIFT_UI_BASH=1` forces the fallback.
+- **Milestone 1 parity + polish** — status badge with live spinner, progress
+  bar, cost, two-pane tasks + log (summary/events toggle, `t`), commit preview
+  for a selected done task, status footer, message bar, help overlay (`?`),
+  keyboard nav (`j/k`, arrows, `g/G`), and the full cooperative control set
+  (`i`/`/` message, `p/r/n/s/x`, `K`), all writing the existing control channel.
+  Honors `NO_COLOR`, non-TTY (prints a hint), and `--attach DIR`.
+- **Tests + CI** — `ui/test/protocol.test.ts` (8 assertions, the file-protocol
+  IO layer) plus a headless selftest frame; new `ui-build` CI job runs typecheck,
+  unit tests, build, and the selftest. The bash protocol test still guards the
+  runner side.
+
+Next milestones (per `docs/superpowers/specs/2026-05-30-nightshift-ui-v2-ink-tui-design.md`):
+live agent stream, diff viewer + log scrollback/search, richer messaging
+(multiline + delivery ack), mouse + live metrics.
+
+## [1.7.0] — 2026-05-28
+
+### Added — interactive, bidirectional TUI
+
+The `nightshift ui` dashboard is no longer read-only. You can now watch a live
+run AND talk back to it from the terminal, Claude-Code style — without ever
+freezing the agent mid-call.
+
+- **Message the running agent.** Press `i` (or `/`) to open an input bar, type
+  an instruction, and hit Enter. The note is queued and folded into the agent's
+  very next prompt as a `LIVE OPERATOR NOTES` section. Course-correct an
+  overnight run without restarting it.
+- **Cooperative run control from the UI.** `p` pause, `r` resume, `n` skip the
+  current task/step, `s`/`x` stop gracefully. These are honored at the next
+  agent-call boundary (never a hard signal mid-call), so nothing is corrupted.
+  `K` remains as a last-resort force-kill.
+- **Control channel.** The UI writes one command per line to
+  `.agent-logs/ui_control` (`pause|resume|skip|stop|note:<text>`); both runners
+  drain it at every `call_claude` and at the top of each task/step. Notes flow
+  through `.agent-logs/ui_notes`, consumed once and cleared. No new deps.
+- **Rebuilt terminal visuals.** Status badge (RUNNING/PAUSED/STOPPED/DONE),
+  progress bar, two-pane tasks + log layout with box-drawing rules, color theme
+  (honors `NO_COLOR`), flicker-free redraw via cursor-home + clear-to-EOL, and a
+  last-action feedback line. Active task marked `[~]`, done `[x]`.
+- **`nightshift ui --attach DIR`** (or positional `nightshift ui DIR`) — watch
+  and steer a run in another repo from any cwd. The script cd's into the target
+  before resolving `.agent-logs/`.
+- **`scripts/test-ui-control.sh`** — integration test (30 assertions) covering
+  the renderer, every nav key (subprocess + direct dispatch), the input handler
+  end-to-end (typing, backspace, Enter→send, Esc→cancel), control draining,
+  note round-trip (incl. the no-prompt-leak guard), note-preserved-on-stop,
+  skip-marking (classic checkbox + bulletproof progress file), `--attach`
+  from a foreign cwd, and the bulletproof runner sharing the same protocol.
+  Wired into the `cli-smoke-test` CI job. The TUI is now sourceable via
+  `NIGHTSHIFT_UI_LIB_ONLY=1` so input/nav handlers get unit-test coverage too.
+
+### Fixed
+
+- `consume_notes` logged via stdout while its stdout was captured into the agent
+  prompt (`notes=$(consume_notes)`), leaking a log line + ANSI codes into the
+  prompt. Logging now goes to stderr; only the notes section reaches the prompt.
+- **Operator note lost when sent with `stop`.** A note queued in the same drain
+  batch as a `stop` command vanished: `maybe_graceful_stop` called `exit` before
+  `consume_notes` ran, so the note was written to `ui_notes` but never recorded.
+  New `flush_pending_notes_to_log` drains any pending note into the summary +
+  event log (`operator_note_unsent`) during graceful shutdown — the run is
+  ending so it isn't sent to the agent, but the operator's words survive in the
+  record. Fixed in both runners.
+
+### Why this release
+
+Direct response to the core ask: make the tool feel like Claude Code — see
+progress live AND write to it. The overnight runner was capable but opaque and
+one-way; this closes the loop with a real interactive terminal UI.
+
 ## [1.6.0] — 2026-05-28
 
 ### Added — interactive TUI

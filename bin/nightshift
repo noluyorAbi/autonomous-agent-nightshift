@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="1.6.0"
+VERSION="1.8.0"
 REPO_URL="https://github.com/noluyorAbi/autonomous-agent-nightshift"
 
 # ---- Locate ROOT (where scripts/, templates/, docs/ live) ----
@@ -219,11 +219,18 @@ cmd_tail() {
 }
 
 cmd_ui() {
-    if [ -x "$SCRIPTS/nightshift-ui.sh" ]; then
-        "$SCRIPTS/nightshift-ui.sh"
-    else
-        die "missing UI script at $SCRIPTS/nightshift-ui.sh"
+    local bundle="$ROOT/ui/dist/cli.js"
+    # Prefer the rich Ink TUI when Node and the prebuilt bundle are present.
+    # Falls back to the bash "lite" UI otherwise (e.g. brew/curl installs with
+    # no Node). NIGHTSHIFT_UI_BASH=1 forces the fallback.
+    if [ "${NIGHTSHIFT_UI_BASH:-}" != "1" ] && [ -f "$bundle" ] && command -v node >/dev/null 2>&1 \
+        && node -e 'process.exit((+process.versions.node.split(".")[0])>=22?0:1)' 2>/dev/null; then
+        exec node "$bundle" "$@"
     fi
+    if [ -x "$SCRIPTS/nightshift-ui.sh" ]; then
+        exec "$SCRIPTS/nightshift-ui.sh" "$@"
+    fi
+    die "no UI available (need Node + $bundle, or $SCRIPTS/nightshift-ui.sh)"
 }
 
 cmd_review() {
@@ -316,7 +323,7 @@ ${BOLD}COMMANDS${NC}
   ${GREEN}stop${NC}                     Halt the running nightshift
   ${GREEN}status${NC}                   Is it alive? What task?
   ${GREEN}tail${NC}                     Follow the summary log
-  ${GREEN}ui${NC}                       Interactive TUI (tasks, logs, status)
+  ${GREEN}ui${NC}                       Interactive TUI — watch live + message the agent
   ${GREEN}review${NC}                   Morning report: summary, REVIEW flags, diff
   ${GREEN}resume${NC}                   Diagnose + restart after a stop
   ${GREEN}help${NC} [cmd]               Show this help

@@ -16,5 +16,7 @@ node_modules/
 
 # Ruflo plugin local memory
 ruvector.db
+agentdb.rvf
+agentdb.rvf.lock
 site/dist/
 site/node_modules/
