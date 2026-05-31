@@ -4,6 +4,8 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-05-31
+
 ### Added — `nightshift ui` v2: Claude-Code-grade Ink TUI (Milestone 1)
 
 A ground-up rebuild of the dashboard as a real terminal UI (Node + Ink/React),
@@ -11,9 +13,10 @@ replacing the hand-rolled bash ANSI renderer. It is a drop-in client of the
 same `.agent-logs/` file protocol, so the bash runners are unchanged.
 
 - **New `ui/` workspace** — TypeScript + Ink, bundled by esbuild into a single
-  self-contained `ui/dist/cli.js` (no `node_modules` ships or installs). Runs on
-  Node 18+.
-- **`bin/nightshift ui` dispatch** — uses the Ink TUI when Node 18+ and the
+  self-contained `ui/dist/cli.js` (no `node_modules` ships or installs). Requires
+  Node 22+ (ink 7's floor); `bin/nightshift` gates on it and falls back to the
+  bash UI below that.
+- **`bin/nightshift ui` dispatch** — uses the Ink TUI when Node 22+ and the
   bundle are present, otherwise falls back to the bash UI (`scripts/nightshift-ui.sh`,
   retained). `NIGHTSHIFT_UI_BASH=1` forces the fallback.
 - **Milestone 1 parity + polish** — status badge with live spinner, progress

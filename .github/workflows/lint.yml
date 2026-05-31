@@ -177,11 +177,11 @@ jobs:
       - name: Bundle is committed and in sync
         run: |
           if ! git diff --quiet -- ui/dist/cli.js; then
-            echo "WARNING: ui/dist/cli.js differs after rebuild — run 'npm run build' in ui/ and commit."
+            echo "FAIL: ui/dist/cli.js is out of sync with ui/src — run 'npm run build' in ui/ and commit the result."
             git diff --stat -- ui/dist/cli.js || true
-          else
-            echo "OK: committed bundle is in sync"
+            exit 1
           fi
+          echo "OK: committed bundle is in sync"
 
       - name: Selftest renders a frame
         working-directory: ui

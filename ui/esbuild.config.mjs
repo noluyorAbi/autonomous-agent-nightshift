@@ -12,7 +12,10 @@ await build({
   bundle: true,
   platform: 'node',
   format: 'esm',
-  target: 'node18',
+  // ink 7 requires Node >= 22; bin/nightshift gates the UI on Node >= 22 and
+  // falls back to the bash UI below that. The root package.json allows >= 18
+  // because the bash CLI itself needs no Node.
+  target: 'node22',
   jsx: 'automatic',
   // ink only `await import('./devtools.js')` under DEV=true (guarded by
   // import.meta.resolve), so react-devtools-core never loads in normal runtime.

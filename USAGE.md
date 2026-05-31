@@ -93,9 +93,10 @@ A live, two-way terminal dashboard for a running nightshift — see progress AND
 steer it without restarting. Run it in a second terminal while `nightshift
 start` works in the background.
 
-On Node 18+ this is a Claude-Code-grade Ink/React TUI (shipped prebuilt, no
-install step). Without Node it falls back to the bash dashboard automatically;
-both speak the same control protocol. Force the fallback with `NIGHTSHIFT_UI_BASH=1`.
+On Node 22+ this is a Claude-Code-grade Ink/React TUI (shipped prebuilt, no
+install step). On older Node or none, it falls back to the bash dashboard
+automatically; both speak the same control protocol. Force the fallback with
+`NIGHTSHIFT_UI_BASH=1`.
 
 Layout: a status header (badge + progress bar + iteration + cost), a task pane
 next to a live log pane, a status footer (phase, validation/chrome counters,
