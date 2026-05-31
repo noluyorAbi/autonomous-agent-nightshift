@@ -27,6 +27,8 @@ export function statusBadge(status: string): {
       return { label: 'DONE', bg: 'blue', fg: 'white' };
     case 'starting':
       return { label: 'STARTING', bg: 'cyan', fg: 'black' };
+    case 'idle':
+      return { label: 'IDLE', bg: 'gray', fg: 'black' };
     default:
       return { label: (status || 'unknown').toUpperCase(), bg: 'gray', fg: 'black' };
   }

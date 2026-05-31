@@ -4,6 +4,31 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-05-31
+
+### Added — TUI as the default entry + full control center
+
+`nightshift ui` is now the front door and a complete control center — you no
+longer need an already-running run to open it, and every CLI subcommand is
+reachable from inside the TUI.
+
+- **Bare `nightshift` launches the TUI** in a terminal (the default experience).
+  Piped / non-interactive invocations and `nightshift help` still print help, so
+  scripting is unchanged. All subcommands behave exactly as before.
+- **Home / launcher state** when no run is live: project status, last-run
+  summary, the detected todo/plan files (with task counts), and actions —
+  Start · Init · Review · Resume · command palette · Quit.
+- **Command palette (`:`)** runs every subcommand from inside the TUI
+  (`start · stop · status · review · resume · init · bulletproof · version`).
+  Output-producing commands render in a scrollable modal; `start` launches the
+  run detached and the view flips to live automatically.
+- **Thin orchestration, no reimplementation.** The TUI spawns the real
+  `bin/nightshift` subcommands (passed in via `NIGHTSHIFT_BIN`); the bash
+  runners and their logic are untouched.
+- The live monitor/steer view (tasks, log, pause/resume/skip/stop/message) is
+  unchanged; the UI now switches home↔live automatically as runs start and end.
+- Bash fallback stays monitor-only; the launcher is the Node UI (Node 22+).
+
 ## [1.8.0] — 2026-05-31
 
 ### Added — `nightshift ui` v2: Claude-Code-grade Ink TUI (Milestone 1)

@@ -19,7 +19,12 @@ import {
   controlNote,
   tailLines,
   parseTaskNum,
+  runnerAlive,
+  listTodoFiles,
+  isInitialized,
+  lastRunSummary,
   CONTROL_FILE,
+  PID_FILE,
 } from '../src/protocol.ts';
 
 // Make a temp project dir with an empty .agent-logs/, chdir into it, return path.
@@ -131,4 +136,47 @@ test('tailLines returns the last n non-trailing lines', () => {
 test('CONTROL_FILE path is the shared protocol path', () => {
   assert.equal(CONTROL_FILE, '.agent-logs/ui_control');
   assert.ok(existsSync); // sanity import works
+});
+
+test('runnerAlive: false when no pid, true for a live pid, false for a dead one', () => {
+  const dir = fixture();
+  assert.equal(runnerAlive(), false); // no pid file
+  writeFileSync(PID_FILE, String(process.pid)); // this test process — alive
+  assert.equal(runnerAlive(), true);
+  writeFileSync(PID_FILE, '2147483646'); // implausible pid — not running
+  assert.equal(runnerAlive(), false);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('listTodoFiles: counts checkboxes and tags bulletproof', () => {
+  const dir = fixture();
+  writeFileSync('todo-2026_05_31_a.md', '- [x] **Task 1**\n- [ ] **Task 2**\n');
+  writeFileSync('BULLETPROOF-STEPS.md', '- [ ] **Step 1**\n');
+  const todos = listTodoFiles();
+  const a = todos.find((t) => t.file === 'todo-2026_05_31_a.md')!;
+  assert.equal(a.total, 2);
+  assert.equal(a.done, 1);
+  assert.equal(a.bulletproof, false);
+  const bp = todos.find((t) => t.file === 'BULLETPROOF-STEPS.md')!;
+  assert.equal(bp.bulletproof, true);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('isInitialized: true only when start-nightshift.sh exists', () => {
+  const dir = fixture();
+  assert.equal(isInitialized(), false);
+  writeFileSync('start-nightshift.sh', '#!/usr/bin/env bash\n');
+  assert.equal(isInitialized(), true);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('lastRunSummary: empty for null, descriptive for a state', () => {
+  assert.equal(lastRunSummary(null), '');
+  const dir = fixture();
+  writeFileSync('.agent-logs/run_state.json', STATE);
+  const s = loadState();
+  const sum = lastRunSummary(s);
+  assert.match(sum, /last run: running/);
+  assert.match(sum, /task 2\/3/);
+  rmSync(dir, { recursive: true, force: true });
 });

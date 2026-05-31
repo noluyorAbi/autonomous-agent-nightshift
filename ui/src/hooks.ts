@@ -5,14 +5,17 @@ import {
   detectTaskFile,
   readTasks,
   fileMtimeMs,
+  runnerAlive,
   STATE_FILE,
   EVENTS_FILE,
+  PID_FILE,
 } from './protocol';
 import type { RunState, Task } from './types';
 
 export interface RunSnapshot {
   state: RunState | null; // last-good state
   stale: boolean; // state file vanished/unparseable since last good read
+  live: boolean; // runner.pid is alive → show the monitor, else the launcher
   tasks: Task[];
   summaryLog: string;
   eventsFile: string;
@@ -40,6 +43,7 @@ export function useRun(intervalMs = 200): RunSnapshot {
       const s = JSON.stringify({
         st: next.state,
         stale: next.stale,
+        live: next.live,
         t: next.tasks,
         p: next.pulse,
       });
@@ -66,6 +70,15 @@ function readOnce(prevGood: RunState | null): RunSnapshot {
     Math.round(fileMtimeMs(STATE_FILE)) +
     Math.round(fileMtimeMs(EVENTS_FILE)) +
     Math.round(fileMtimeMs(summaryLog)) +
+    Math.round(fileMtimeMs(PID_FILE)) +
     Math.round(fileMtimeMs(state?.activeLog ?? ''));
-  return { state, stale, tasks, summaryLog, eventsFile: EVENTS_FILE, pulse };
+  return {
+    state,
+    stale,
+    live: runnerAlive(),
+    tasks,
+    summaryLog,
+    eventsFile: EVENTS_FILE,
+    pulse,
+  };
 }
