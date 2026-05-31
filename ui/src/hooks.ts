@@ -6,17 +6,22 @@ import {
   readTasks,
   fileMtimeMs,
   runnerAlive,
+  listTodoFiles,
+  isInitialized,
   STATE_FILE,
   EVENTS_FILE,
   PID_FILE,
 } from './protocol';
 import type { RunState, Task } from './types';
+import type { TodoFileInfo } from './protocol';
 
 export interface RunSnapshot {
   state: RunState | null; // last-good state
   stale: boolean; // state file vanished/unparseable since last good read
   live: boolean; // runner.pid is alive → show the monitor, else the launcher
   tasks: Task[];
+  todos: TodoFileInfo[]; // launcher: runnable task files (empty while live)
+  initialized: boolean; // launcher: has `init` been run here?
   summaryLog: string;
   eventsFile: string;
   pulse: number; // bumps whenever any watched file changes (drives log re-tail)
@@ -45,6 +50,8 @@ export function useRun(intervalMs = 200): RunSnapshot {
         stale: next.stale,
         live: next.live,
         t: next.tasks,
+        td: next.todos,
+        init: next.initialized,
         p: next.pulse,
       });
       if (s !== sig.current) {
@@ -63,6 +70,7 @@ function readOnce(prevGood: RunState | null): RunSnapshot {
   const fresh = loadState();
   const state = fresh ?? prevGood;
   const stale = fresh === null && prevGood !== null;
+  const live = runnerAlive();
   const summaryLog = state ? detectSummaryLog(state) : '';
   const taskFile = state ? detectTaskFile(state) : '';
   const tasks = readTasks(taskFile);
@@ -75,8 +83,10 @@ function readOnce(prevGood: RunState | null): RunSnapshot {
   return {
     state,
     stale,
-    live: runnerAlive(),
+    live,
     tasks,
+    todos: live ? [] : listTodoFiles(),
+    initialized: isInitialized(),
     summaryLog,
     eventsFile: EVENTS_FILE,
     pulse,

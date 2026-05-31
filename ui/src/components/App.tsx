@@ -8,8 +8,6 @@ import {
   findTaskCommit,
   buildCommitPreview,
   tailLines,
-  listTodoFiles,
-  isInitialized,
   lastRunSummary,
 } from '../protocol';
 import { COMMANDS, runCapture, startRun, type Command } from '../actions';
@@ -59,6 +57,9 @@ export function App({ inputActive = true }: { inputActive?: boolean }) {
   const [modal, setModal] = useState({ title: '', lines: [] as string[], offset: 0, running: false });
   const [initBuf, setInitBuf] = useState('');
   const [, forceTick] = useState(0);
+  // Guards modal-fill callbacks: a slow command's result must not overwrite a
+  // newer command's modal. Bumped on every capture launch.
+  const modalSession = useRef(0);
 
   useEffect(() => {
     const onResize = () => forceTick((n) => n + 1);
@@ -71,8 +72,8 @@ export function App({ inputActive = true }: { inputActive?: boolean }) {
   const tasks = snap.tasks;
   const firstOpen = tasks.findIndex((t) => t.box === ' ') + 1;
   const sel = effectiveSelected(selected, tasks.length, state.taskIndex, firstOpen);
-  const todos = isLive ? [] : listTodoFiles();
-  const initialized = isInitialized();
+  const todos = snap.todos;
+  const initialized = snap.initialized;
 
   const cols = Math.max(stdout?.columns ?? 80, 50);
   const rows = Math.max(stdout?.rows ?? 24, 14);
@@ -100,18 +101,22 @@ export function App({ inputActive = true }: { inputActive?: boolean }) {
       return;
     }
     // capture
+    const session = ++modalSession.current;
     setModal({ title: `nightshift ${cmd.id}`, lines: [], offset: 0, running: true });
     setOverlay('modal');
     runCapture([cmd.id], (out) => {
+      if (modalSession.current !== session) return; // a newer command took over
       setModal({ title: `nightshift ${cmd.id}`, lines: out.split('\n'), offset: 0, running: false });
     });
   }
 
   function submitInit() {
     const name = initBuf.trim();
-    setOverlay('modal');
+    const session = ++modalSession.current;
     setModal({ title: `nightshift init ${name}`, lines: [], offset: 0, running: true });
+    setOverlay('modal');
     runCapture(['init', name], (out) => {
+      if (modalSession.current !== session) return;
       setModal({ title: `nightshift init ${name}`, lines: out.split('\n'), offset: 0, running: false });
     });
   }
@@ -119,12 +124,12 @@ export function App({ inputActive = true }: { inputActive?: boolean }) {
   useInput((input, key) => {
     // ---- overlays first ----
     if (overlay === 'modal') {
-      const max = Math.max(0, modal.lines.length - bodyRows);
+      const maxOf = (m: typeof modal) => Math.max(0, m.lines.length - bodyRows);
       if (key.escape || input === 'q') setOverlay('none');
-      else if (input === 'j' || key.downArrow) setModal((m) => ({ ...m, offset: Math.min(m.offset + 1, max) }));
+      else if (input === 'j' || key.downArrow) setModal((m) => ({ ...m, offset: Math.min(m.offset + 1, maxOf(m)) }));
       else if (input === 'k' || key.upArrow) setModal((m) => ({ ...m, offset: Math.max(m.offset - 1, 0) }));
       else if (input === 'g') setModal((m) => ({ ...m, offset: 0 }));
-      else if (input === 'G') setModal((m) => ({ ...m, offset: max }));
+      else if (input === 'G') setModal((m) => ({ ...m, offset: maxOf(m) }));
       return;
     }
     if (overlay === 'init') {

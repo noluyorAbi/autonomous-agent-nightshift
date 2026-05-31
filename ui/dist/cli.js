@@ -39561,6 +39561,8 @@ function useRun(intervalMs = 200) {
         stale: next.stale,
         live: next.live,
         t: next.tasks,
+        td: next.todos,
+        init: next.initialized,
         p: next.pulse
       });
       if (s !== sig.current) {
@@ -39577,6 +39579,7 @@ function readOnce(prevGood) {
   const fresh = loadState();
   const state = fresh ?? prevGood;
   const stale = fresh === null && prevGood !== null;
+  const live = runnerAlive();
   const summaryLog = state ? detectSummaryLog(state) : "";
   const taskFile = state ? detectTaskFile(state) : "";
   const tasks = readTasks(taskFile);
@@ -39584,8 +39587,10 @@ function readOnce(prevGood) {
   return {
     state,
     stale,
-    live: runnerAlive(),
+    live,
     tasks,
+    todos: live ? [] : listTodoFiles(),
+    initialized: isInitialized(),
     summaryLog,
     eventsFile: EVENTS_FILE,
     pulse
@@ -39605,7 +39610,7 @@ var COMMANDS = [
   { id: "review", label: "review", desc: "morning report: summary + diff", kind: "capture" },
   { id: "resume", label: "resume", desc: "diagnose + restart after a stop", kind: "capture" },
   { id: "init", label: "init", desc: "bootstrap a project (prompts for a name)", kind: "init" },
-  { id: "bulletproof", label: "bulletproof", desc: "branch + commit-per-step PR mode", kind: "capture" },
+  { id: "bulletproof-init", label: "bulletproof", desc: "branch + commit-per-step PR mode", kind: "capture" },
   { id: "version", label: "version", desc: "show the CLI version", kind: "capture" }
 ];
 function runCapture(args, cb) {
@@ -40101,6 +40106,7 @@ function App2({ inputActive = true }) {
   const [modal, setModal] = (0, import_react36.useState)({ title: "", lines: [], offset: 0, running: false });
   const [initBuf, setInitBuf] = (0, import_react36.useState)("");
   const [, forceTick] = (0, import_react36.useState)(0);
+  const modalSession = (0, import_react36.useRef)(0);
   (0, import_react36.useEffect)(() => {
     const onResize = () => forceTick((n) => n + 1);
     stdout?.on("resize", onResize);
@@ -40113,8 +40119,8 @@ function App2({ inputActive = true }) {
   const tasks = snap.tasks;
   const firstOpen = tasks.findIndex((t) => t.box === " ") + 1;
   const sel = effectiveSelected(selected, tasks.length, state.taskIndex, firstOpen);
-  const todos = isLive ? [] : listTodoFiles();
-  const initialized = isInitialized();
+  const todos = snap.todos;
+  const initialized = snap.initialized;
   const cols = Math.max(stdout?.columns ?? 80, 50);
   const rows = Math.max(stdout?.rows ?? 24, 14);
   const leftWidth = Math.min(Math.floor(cols / 2), 48);
@@ -40144,28 +40150,32 @@ function App2({ inputActive = true }) {
       setOverlay("init");
       return;
     }
+    const session = ++modalSession.current;
     setModal({ title: `nightshift ${cmd.id}`, lines: [], offset: 0, running: true });
     setOverlay("modal");
     runCapture([cmd.id], (out) => {
+      if (modalSession.current !== session) return;
       setModal({ title: `nightshift ${cmd.id}`, lines: out.split("\n"), offset: 0, running: false });
     });
   }
   function submitInit() {
     const name = initBuf.trim();
-    setOverlay("modal");
+    const session = ++modalSession.current;
     setModal({ title: `nightshift init ${name}`, lines: [], offset: 0, running: true });
+    setOverlay("modal");
     runCapture(["init", name], (out) => {
+      if (modalSession.current !== session) return;
       setModal({ title: `nightshift init ${name}`, lines: out.split("\n"), offset: 0, running: false });
     });
   }
   use_input_default((input, key) => {
     if (overlay === "modal") {
-      const max = Math.max(0, modal.lines.length - bodyRows);
+      const maxOf = (m) => Math.max(0, m.lines.length - bodyRows);
       if (key.escape || input === "q") setOverlay("none");
-      else if (input === "j" || key.downArrow) setModal((m) => ({ ...m, offset: Math.min(m.offset + 1, max) }));
+      else if (input === "j" || key.downArrow) setModal((m) => ({ ...m, offset: Math.min(m.offset + 1, maxOf(m)) }));
       else if (input === "k" || key.upArrow) setModal((m) => ({ ...m, offset: Math.max(m.offset - 1, 0) }));
       else if (input === "g") setModal((m) => ({ ...m, offset: 0 }));
-      else if (input === "G") setModal((m) => ({ ...m, offset: max }));
+      else if (input === "G") setModal((m) => ({ ...m, offset: maxOf(m) }));
       return;
     }
     if (overlay === "init") {

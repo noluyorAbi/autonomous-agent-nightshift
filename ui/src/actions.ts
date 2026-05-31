@@ -27,7 +27,7 @@ export const COMMANDS: Command[] = [
   { id: 'review', label: 'review', desc: 'morning report: summary + diff', kind: 'capture' },
   { id: 'resume', label: 'resume', desc: 'diagnose + restart after a stop', kind: 'capture' },
   { id: 'init', label: 'init', desc: 'bootstrap a project (prompts for a name)', kind: 'init' },
-  { id: 'bulletproof', label: 'bulletproof', desc: 'branch + commit-per-step PR mode', kind: 'capture' },
+  { id: 'bulletproof-init', label: 'bulletproof', desc: 'branch + commit-per-step PR mode', kind: 'capture' },
   { id: 'version', label: 'version', desc: 'show the CLI version', kind: 'capture' },
 ];
 
