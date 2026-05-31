@@ -219,11 +219,18 @@ cmd_tail() {
 }
 
 cmd_ui() {
-    if [ -x "$SCRIPTS/nightshift-ui.sh" ]; then
-        "$SCRIPTS/nightshift-ui.sh" "$@"
-    else
-        die "missing UI script at $SCRIPTS/nightshift-ui.sh"
+    local bundle="$ROOT/ui/dist/cli.js"
+    # Prefer the rich Ink TUI when Node and the prebuilt bundle are present.
+    # Falls back to the bash "lite" UI otherwise (e.g. brew/curl installs with
+    # no Node). NIGHTSHIFT_UI_BASH=1 forces the fallback.
+    if [ "${NIGHTSHIFT_UI_BASH:-}" != "1" ] && [ -f "$bundle" ] && command -v node >/dev/null 2>&1 \
+        && node -e 'process.exit((+process.versions.node.split(".")[0])>=18?0:1)' 2>/dev/null; then
+        exec node "$bundle" "$@"
     fi
+    if [ -x "$SCRIPTS/nightshift-ui.sh" ]; then
+        exec "$SCRIPTS/nightshift-ui.sh" "$@"
+    fi
+    die "no UI available (need Node + $bundle, or $SCRIPTS/nightshift-ui.sh)"
 }
 
 cmd_review() {

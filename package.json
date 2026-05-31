@@ -12,6 +12,8 @@
     "commands/",
     "docs/",
     "examples/",
+    "ui/dist/",
+    "ui/package.json",
     ".claude-plugin/",
     "SKILL.md",
     "LICENSE",

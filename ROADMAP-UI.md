@@ -188,3 +188,23 @@ Stages 1-5 are complete, plus the bidirectional layer the roadmap pointed at:
 - Per-task cost + ETA once token accounting lands.
 - A `nightshift ui --attach <dir>` to watch a run in another repo.
 - Inline diff preview of the last commit per task.
+
+---
+
+## v2 — Ink/React rewrite (in progress)
+
+The bash ANSI dashboard hit its ceiling: more terminal-code complexity for less
+polish. v2 rebuilds `nightshift ui` as a real TUI (Node + Ink/React, exactly
+Claude Code's class of tooling) while keeping the bash runners untouched — it is
+a drop-in client of the same `.agent-logs/` protocol. The bash UI stays as the
+no-Node fallback.
+
+Full design: `docs/superpowers/specs/2026-05-30-nightshift-ui-v2-ink-tui-design.md`.
+
+- **Milestone 1 (done):** `ui/` workspace, esbuild single-file bundle,
+  `bin/nightshift` dispatch + bash fallback, CI `ui-build` job, and the dashboard
+  at parity (header, tasks, log, commit preview, status, messaging, control keys).
+- **M2:** live agent output stream (tail the active task's claude logfile).
+- **M3:** syntax-highlighted diff viewer + log scrollback/search.
+- **M4:** richer messaging — multiline compose, note history, delivery ack.
+- **M5:** mouse support + live cost/token/ETA metrics + polish.

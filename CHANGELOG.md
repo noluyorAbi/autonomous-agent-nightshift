@@ -4,6 +4,33 @@ All notable changes documented here. Format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added — `nightshift ui` v2: Claude-Code-grade Ink TUI (Milestone 1)
+
+A ground-up rebuild of the dashboard as a real terminal UI (Node + Ink/React),
+replacing the hand-rolled bash ANSI renderer. It is a drop-in client of the
+same `.agent-logs/` file protocol, so the bash runners are unchanged.
+
+- **New `ui/` workspace** — TypeScript + Ink, bundled by esbuild into a single
+  self-contained `ui/dist/cli.js` (no `node_modules` ships or installs). Runs on
+  Node 18+.
+- **`bin/nightshift ui` dispatch** — uses the Ink TUI when Node 18+ and the
+  bundle are present, otherwise falls back to the bash UI (`scripts/nightshift-ui.sh`,
+  retained). `NIGHTSHIFT_UI_BASH=1` forces the fallback.
+- **Milestone 1 parity + polish** — status badge with live spinner, progress
+  bar, cost, two-pane tasks + log (summary/events toggle, `t`), commit preview
+  for a selected done task, status footer, message bar, help overlay (`?`),
+  keyboard nav (`j/k`, arrows, `g/G`), and the full cooperative control set
+  (`i`/`/` message, `p/r/n/s/x`, `K`), all writing the existing control channel.
+  Honors `NO_COLOR`, non-TTY (prints a hint), and `--attach DIR`.
+- **Tests + CI** — `ui/test/protocol.test.ts` (8 assertions, the file-protocol
+  IO layer) plus a headless selftest frame; new `ui-build` CI job runs typecheck,
+  unit tests, build, and the selftest. The bash protocol test still guards the
+  runner side.
+
+Next milestones (per `docs/superpowers/specs/2026-05-30-nightshift-ui-v2-ink-tui-design.md`):
+live agent stream, diff viewer + log scrollback/search, richer messaging
+(multiline + delivery ack), mouse + live metrics.
+
 ## [1.7.0] — 2026-05-28
 
 ### Added — interactive, bidirectional TUI
