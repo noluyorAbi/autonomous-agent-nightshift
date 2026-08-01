@@ -1,5 +1,19 @@
 name: Publish to npm
 
+# Publishing runs through npm trusted publishing (OIDC), not a stored token.
+# The runner exchanges a short lived GitHub OIDC token for the right to publish
+# this one package, so there is no NPM_TOKEN secret to leak, rotate or forget to
+# revoke, and npm attaches a provenance attestation linking the tarball on the
+# registry back to this repository, this commit and this workflow.
+#
+# ONE TIME SETUP ON NPMJS.COM (already required before the next tag):
+#   Package, Settings, Trusted Publisher, GitHub Actions, filled in exactly:
+#     Organization or user:  noluyorAbi
+#     Repository:            autonomous-agent-nightshift
+#     Workflow filename:     npm-publish.yml
+#     Environment:           leave empty
+#   All fields are case sensitive and the filename must match this file exactly.
+
 on:
   push:
     tags:
@@ -14,12 +28,37 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
+      # Pinned to a commit sha rather than a tag. A tag is mutable, so @v7 means
+      # whatever the owner points it at on the day this job runs, and this is the
+      # one job that can push a release to the registry.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: '20'
+          # This job never pushes. A token left in .git/config would be usable by
+          # any later step, including a compromised transitive dependency.
+          persist-credentials: false
+
+      # Caching is disabled on purpose. This job holds id-token: write, so a cache
+      # entry written by an earlier, less trusted workflow run is a path into the
+      # tarball that gets a provenance attestation. A cold install is cheaper than
+      # that risk.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Trusted publishing needs npm 11.5.1 or newer
+        # Node 24 currently ships a new enough npm, but that is an assumption about
+        # the runner image, not a guarantee. Assert it so this fails with the
+        # reason instead of with an opaque 403 at publish time.
+        run: |
+          have="$(npm --version)"
+          need=11.5.1
+          echo "npm $have"
+          if [ "$(printf '%s\n%s\n' "$need" "$have" | sort -V | head -1)" != "$need" ]; then
+            echo "npm $have is older than $need, which trusted publishing requires"
+            exit 1
+          fi
 
       - name: Verify package.json version matches tag
         env:
@@ -39,20 +78,31 @@ jobs:
           echo "OK: $TAG_VERSION"
 
       - name: Validate package layout
+        # prepack builds ui/dist, so this also proves the bundle builds before the
+        # irreversible step. A version published wrong cannot be unpublished after
+        # 72 hours.
         run: |
           OUTPUT=$(npm pack --dry-run 2>&1)
           echo "$OUTPUT" | grep -q "bin/nightshift" || { echo "FAIL: bin/nightshift missing"; exit 1; }
           echo "$OUTPUT" | grep -q "SKILL.md" || { echo "FAIL: SKILL.md missing"; exit 1; }
           if echo "$OUTPUT" | grep -q "site/node_modules"; then echo "FAIL: site/node_modules leaked"; exit 1; fi
 
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Skip if this version is already on the registry
+        id: exists
+        # Makes a re-run idempotent instead of failing with EPUBLISHCONFLICT, which
+        # reads like a broken pipeline.
         run: |
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::warning::NPM_TOKEN secret not set — skipping publish."
-            echo "Add a granular access token at npmjs.com/settings/noluyorabi/tokens"
-            echo "with 'Bypass 2FA when publishing' enabled, then store as NPM_TOKEN secret."
-            exit 0
+          version="$(node -p "require('./package.json').version")"
+          name="$(node -p "require('./package.json').name")"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is already on the registry, nothing to do"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
           fi
-          npm publish --access public --provenance
+
+      - name: Publish with provenance
+        if: steps.exists.outputs.published == 'false'
+        # No NODE_AUTH_TOKEN. If this step asks for a token, the trusted publisher
+        # is not configured for this package on npmjs.com yet.
+        run: npm publish --access public --provenance
